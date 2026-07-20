@@ -1,26 +1,159 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
+
+@theme {
+  --color-cream: #faf7f0;
+  --color-surface: #ffffff;
+  --color-navy: #17263b;
+  --color-navy-soft: #2c3d55;
+  --color-orange: #c86f45;
+  --color-orange-deep: #b25f38;
+  --color-sky: #6e9fd6;
+  --color-sky-deep: #4f7fb8;
+  --color-border: #e7e0d2;
+  --color-border-strong: #d6cbb5;
+  --color-muted: #6d6559;
+
+  --font-heading: var(--font-eczar);
+  --font-sans: var(--font-plex);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  --shadow-card: 0 1px 2px rgba(23, 38, 59, 0.05), 0 8px 24px rgba(23, 38, 59, 0.06);
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--color-cream);
+  --foreground: var(--color-navy);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  border-color: var(--color-border);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  background-image:
+    linear-gradient(to right, rgba(23, 38, 59, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(23, 38, 59, 0.045) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--color-navy);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), ui-serif, Georgia, serif;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* Strong, visible focus for keyboard users */
+:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Dremmt-styled inline calendar (react-day-picker), matching the brand:
+   warm cream surface, fine borders, deep navy labels, a restrained light-blue
+   selected state, and phone-friendly tap targets that never overflow at 320px.
+--------------------------------------------------------------------------- */
+.dremmt-calendar {
+  --rdp-accent-color: var(--color-sky-deep);
+  --rdp-accent-background-color: rgba(110, 159, 214, 0.16);
+  --rdp-day-width: clamp(2.05rem, 11.5vw, 2.6rem);
+  --rdp-day-height: clamp(2.05rem, 11.5vw, 2.6rem);
+  --rdp-day_button-width: clamp(2.05rem, 11.5vw, 2.6rem);
+  --rdp-day_button-height: clamp(2.05rem, 11.5vw, 2.6rem);
+  --rdp-day_button-border-radius: 9999px;
+  --rdp-day_button-border: 1px solid transparent;
+  --rdp-selected-border: none;
+  --rdp-today-color: var(--color-orange-deep);
+  --rdp-weekday-opacity: 1;
+  --rdp-outside-opacity: 0.4;
+  --rdp-disabled-opacity: 0.32;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-navy);
+  margin: 0;
+}
+
+.dremmt-calendar .rdp-months {
+  max-width: 100%;
+}
+
+.dremmt-calendar .rdp-month_caption {
+  font-family: var(--font-heading), ui-serif, Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  padding-inline: 0.25rem;
+}
+
+.dremmt-calendar .rdp-weekday {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dremmt-calendar .rdp-day_button {
+  font-size: 0.95rem;
+  color: var(--color-navy);
+}
+
+.dremmt-calendar .rdp-day:not(.rdp-selected):not(.rdp-disabled) .rdp-day_button:hover {
+  background-color: rgba(23, 38, 59, 0.06);
+}
+
+.dremmt-calendar .rdp-today:not(.rdp-selected) .rdp-day_button {
+  border-color: var(--color-border-strong);
+  font-weight: 600;
+}
+
+.dremmt-calendar .rdp-selected {
+  font-size: inherit;
+}
+
+.dremmt-calendar .rdp-selected .rdp-day_button {
+  background-color: var(--color-sky-deep);
+  border-color: var(--color-sky-deep);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.dremmt-calendar .rdp-chevron {
+  fill: var(--color-navy);
+}
+
+.dremmt-calendar .rdp-button_previous:hover .rdp-chevron,
+.dremmt-calendar .rdp-button_next:hover .rdp-chevron {
+  fill: var(--color-orange-deep);
 }
