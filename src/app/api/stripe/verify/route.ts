@@ -3,13 +3,17 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { siteUrl } from "@/lib/env";
 import { MEMBER_COOKIE, memberCookieOptions } from "@/lib/auth";
-import type { SubscriptionStatus } from "@/lib/types";
+import { buildSubscriptionSyncPatch } from "@/lib/stripe-webhook-sync";
 
 /**
  * Stripe success_url target. Verifies the Checkout Session server-side, marks
  * membership active + run ready, sets the secure membership cookie, then
  * redirects into the share page. The webhook remains the authoritative source
  * of subscription state; this exists so local testing has a smooth flow.
+ *
+ * Cancellation fields are written from the live Stripe Subscription via the
+ * shared normalizer — never invent cancel_at_period_end=false or clear
+ * access_ends_at without Stripe saying so.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -43,29 +47,39 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
 
-  let status: SubscriptionStatus = "active";
-  let cancelAtPeriodEnd = false;
-  if (subscriptionId) {
+  if (memberId && subscriptionId) {
     try {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      if (subscription.status === "trialing") status = "trialing";
-      else if (subscription.status === "active") status = "active";
-      else if (subscription.status === "past_due") status = "past_due";
-      else if (subscription.status === "canceled") status = "canceled";
-      cancelAtPeriodEnd = subscription.cancel_at_period_end ?? false;
+      const patch = buildSubscriptionSyncPatch(subscription);
+      await supabase
+        .from("members")
+        .update({
+          stripe_customer_id: patch.stripe_customer_id ?? customerId,
+          stripe_subscription_id: patch.stripe_subscription_id,
+          subscription_status: patch.subscription_status,
+          cancel_at_period_end: patch.cancel_at_period_end,
+          cancellation_requested_at: patch.cancellation_requested_at,
+          access_ends_at: patch.access_ends_at,
+        })
+        .eq("id", memberId);
     } catch {
-      /* keep default active — webhook will reconcile */
+      /* webhook will reconcile */
+      if (customerId || subscriptionId) {
+        await supabase
+          .from("members")
+          .update({
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+          })
+          .eq("id", memberId);
+      }
     }
-  }
-
-  if (memberId) {
+  } else if (memberId) {
     await supabase
       .from("members")
       .update({
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
-        subscription_status: status,
-        cancel_at_period_end: cancelAtPeriodEnd,
       })
       .eq("id", memberId);
   }
@@ -93,7 +107,6 @@ export async function GET(request: Request) {
 
   if (!inviteToken) return failure;
 
-  // Retrieve the member access token so we can set the secure cookie.
   let memberAccessToken: string | null = null;
   if (memberId) {
     const { data: member } = await supabase

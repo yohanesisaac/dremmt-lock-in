@@ -39,7 +39,12 @@ export interface MemberRow {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: SubscriptionStatus;
+  /** Raw Stripe cancel_at_period_end boolean. */
   cancel_at_period_end: boolean;
+  /** Stripe canceled_at — when cancellation was requested. */
+  cancellation_requested_at: string | null;
+  /** Stripe cancel_at — when access is scheduled to end. */
+  access_ends_at: string | null;
   member_access_token: string;
   created_at: string;
   updated_at: string;

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { SiteHeader, SiteFooter, primaryButton, eyebrowClass } from "@/components/ui";
-import { PlanCard } from "@/components/PlanCard";
 import { ShareActions } from "@/components/ShareActions";
-import { getRunByToken } from "@/lib/data";
+import { getMemberById, getRunByToken } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
 import { friendShareMessage } from "@/lib/messages";
-import type { TimeWindow } from "@/lib/types";
+import { canShowCheckoutSuccess } from "@/lib/membership-identity";
+import { getInitiatorShareStatus } from "@/lib/invite-ui";
+import { formatTimeWindowShort } from "@/lib/time-windows";
 
 export default async function SuccessPage({
   searchParams,
@@ -15,13 +16,22 @@ export default async function SuccessPage({
   const { token, error } = await searchParams;
 
   const run = token ? await getRunByToken(token) : null;
+  const member = run?.member_id ? await getMemberById(run.member_id) : null;
+
+  const eligible =
+    !error &&
+    run &&
+    canShowCheckoutSuccess({
+      runStatus: run.status,
+      memberStatus: member?.subscription_status,
+    });
 
   return (
     <>
       <SiteHeader />
       <main className="flex-1">
         <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
-          {error || !run ? (
+          {!eligible || !run ? (
             <section className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
               <h1 className="text-2xl text-navy">We couldn&apos;t confirm that run</h1>
               <p className="mt-3 text-navy">
@@ -39,14 +49,14 @@ export default async function SuccessPage({
             <ShareView
               inviteUrl={`${siteUrl()}/invite/${run.invite_token}`}
               message={friendShareMessage(run)}
-              friendName={run.friend_name}
-              restaurantName={run.restaurant_name}
-              location={run.location}
-              restaurantLink={run.restaurant_link}
-              windows={
+              status={getInitiatorShareStatus(run)}
+              proposedWindows={
                 run.time_option_two
-                  ? [run.time_option_one, run.time_option_two]
-                  : [run.time_option_one]
+                  ? [
+                      formatTimeWindowShort(run.time_option_one),
+                      formatTimeWindowShort(run.time_option_two),
+                    ]
+                  : [formatTimeWindowShort(run.time_option_one)]
               }
             />
           )}
@@ -60,38 +70,63 @@ export default async function SuccessPage({
 function ShareView({
   inviteUrl,
   message,
-  friendName,
-  restaurantName,
-  location,
-  restaurantLink,
-  windows,
+  status,
+  proposedWindows,
 }: {
   inviteUrl: string;
   message: string;
-  friendName: string;
-  restaurantName: string;
-  location: string | null;
-  restaurantLink: string | null;
-  windows: TimeWindow[];
+  status: ReturnType<typeof getInitiatorShareStatus>;
+  proposedWindows: string[];
 }) {
+  if (status.kind === "conflict") {
+    return (
+      <section className="space-y-4">
+        <h1 className="text-3xl text-navy">Neither time works.</h1>
+        <p className="text-muted">
+          <Link href="/create" className="underline underline-offset-4">
+            Make a new plan
+          </Link>
+        </p>
+      </section>
+    );
+  }
+
+  if (status.kind === "accepted") {
+    return (
+      <section className="space-y-6">
+        <h1 className="text-3xl text-navy">{status.friendName} is in.</h1>
+        <div className="space-y-2">
+          <p className="text-2xl font-semibold text-navy">{status.restaurantName}</p>
+          <p className="text-xl text-navy">{status.acceptedLabel}</p>
+          <p className="text-lg font-medium text-navy">At least $6 locked</p>
+        </div>
+        <p className="text-sm text-muted">
+          <Link href="/manage-membership" className="underline underline-offset-4">
+            Manage or cancel membership
+          </Link>
+        </p>
+      </section>
+    );
+  }
+
+  const friendName =
+    status.kind === "waiting" ? status.friendName : "your friend";
+
   return (
     <section className="space-y-6">
       <div>
-        <p className={eyebrowClass}>Ready to send</p>
-        <h1 className="mt-1 text-3xl text-navy">Your Dremmt run is ready.</h1>
-        <p className="mt-2 text-navy">
-          Send {friendName} the link. They pick a time and lock it in — no account,
-          no payment.
-        </p>
+        <h1 className="text-3xl text-navy">Waiting for {friendName}</h1>
+        <ul className="mt-4 space-y-2">
+          {proposedWindows.map((label) => (
+            <li
+              key={label}
+              className="rounded-full border border-border-strong bg-cream px-5 py-3 text-navy"
+            >
+              {label}
+            </li>
+          ))}
+        </ul>
       </div>
-
-      <PlanCard
-        friendName={friendName}
-        restaurantName={restaurantName}
-        location={location}
-        restaurantLink={restaurantLink}
-        windows={windows}
-      />
 
       <div className="rounded-lg border border-border bg-surface p-5 shadow-[var(--shadow-card)]">
         <p className={eyebrowClass}>Suggested message</p>
@@ -101,15 +136,9 @@ function ShareView({
       <ShareActions url={inviteUrl} message={message} />
 
       <p className="text-sm text-muted">
-        Dremmt won&apos;t text your friend for you — send the link through text,
-        Instagram, WhatsApp, or wherever you two talk.
-      </p>
-
-      <p className="text-sm text-muted">
         <Link href="/manage-membership" className="underline underline-offset-4">
           Manage or cancel membership
         </Link>
-        . Cancel before your free trial ends and you won&apos;t be charged.
       </p>
     </section>
   );

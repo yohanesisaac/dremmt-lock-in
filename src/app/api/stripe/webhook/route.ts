@@ -3,26 +3,97 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { serverEnv } from "@/lib/env";
-import type { SubscriptionStatus } from "@/lib/types";
+import type { MemberRow } from "@/lib/types";
+import {
+  buildSubscriptionSyncPatch,
+  syncSubscriptionCancellation,
+  type SubscriptionSyncPatch,
+} from "@/lib/stripe-webhook-sync";
 
-function mapStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
-  switch (status) {
-    case "active":
-      return "active";
-    case "trialing":
-      return "trialing";
-    case "past_due":
-      return "past_due";
-    case "unpaid":
-      return "unpaid";
-    case "canceled":
-      return "canceled";
-    case "incomplete":
-    case "incomplete_expired":
-      return "incomplete";
-    default:
-      return "inactive";
+async function findMemberBySubscriptionId(
+  subscriptionId: string,
+): Promise<MemberRow | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("stripe_subscription_id", subscriptionId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Member lookup by subscription failed: ${error.message}`);
   }
+  return (data as MemberRow | null) ?? null;
+}
+
+async function findMemberByCustomerId(
+  customerId: string,
+): Promise<MemberRow | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("stripe_customer_id", customerId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Member lookup by customer failed: ${error.message}`);
+  }
+  return (data as MemberRow | null) ?? null;
+}
+
+async function updateMemberById(
+  memberId: string,
+  patch: SubscriptionSyncPatch,
+): Promise<MemberRow | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .update({
+      subscription_status: patch.subscription_status,
+      cancel_at_period_end: patch.cancel_at_period_end,
+      cancellation_requested_at: patch.cancellation_requested_at,
+      access_ends_at: patch.access_ends_at,
+      stripe_subscription_id: patch.stripe_subscription_id,
+      ...(patch.stripe_customer_id
+        ? { stripe_customer_id: patch.stripe_customer_id }
+        : {}),
+    })
+    .eq("id", memberId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Member update failed: ${error.message}`);
+  }
+  return (data as MemberRow | null) ?? null;
+}
+
+function logDevWarning(message: string) {
+  console.warn(message);
+}
+
+async function handleSubscriptionLifecycle(
+  subscription: Stripe.Subscription,
+  options?: { asDeleted?: boolean },
+): Promise<NextResponse | null> {
+  const result = await syncSubscriptionCancellation({
+    subscription,
+    findBySubscriptionId: findMemberBySubscriptionId,
+    findByCustomerId: findMemberByCustomerId,
+    updateMemberById,
+    logWarning: logDevWarning,
+    asDeleted: options?.asDeleted,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
+  }
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -59,76 +130,119 @@ export async function POST(request: Request) {
         const subscriptionId =
           typeof session.subscription === "string" ? session.subscription : null;
 
-        let status: SubscriptionStatus = "active";
-        let cancelAtPeriodEnd = false;
+        // Pull live subscription so we never invent cancel_at_period_end=false
+        // over a newer cancellation state Stripe already has.
+        let patch: SubscriptionSyncPatch | null = null;
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          status = mapStatus(subscription.status);
-          cancelAtPeriodEnd = subscription.cancel_at_period_end ?? false;
+          patch = buildSubscriptionSyncPatch(subscription);
+          if (customerId && !patch.stripe_customer_id) {
+            patch.stripe_customer_id = customerId;
+          }
         }
 
         if (memberId) {
-          await supabase
+          const { data, error } = await supabase
             .from("members")
-            .update({
-              stripe_customer_id: customerId,
-              stripe_subscription_id: subscriptionId,
-              subscription_status: status,
-              cancel_at_period_end: cancelAtPeriodEnd,
-            })
-            .eq("id", memberId);
+            .update(
+              patch
+                ? {
+                    stripe_customer_id: patch.stripe_customer_id ?? customerId,
+                    stripe_subscription_id: patch.stripe_subscription_id,
+                    subscription_status: patch.subscription_status,
+                    cancel_at_period_end: patch.cancel_at_period_end,
+                    cancellation_requested_at: patch.cancellation_requested_at,
+                    access_ends_at: patch.access_ends_at,
+                  }
+                : {
+                    stripe_customer_id: customerId,
+                    stripe_subscription_id: subscriptionId,
+                  },
+            )
+            .eq("id", memberId)
+            .select("id")
+            .maybeSingle();
+          if (error) {
+            throw new Error(
+              `checkout.session.completed member update failed: ${error.message}`,
+            );
+          }
+          if (!data) {
+            throw new Error(
+              `checkout.session.completed matched zero members for id ${memberId}.`,
+            );
+          }
         }
 
         if (runId) {
-          // Move the paid run out of awaiting_payment so it is ready to share.
-          await supabase
+          const { error } = await supabase
             .from("runs")
             .update({ status: "ready" })
             .eq("id", runId)
             .eq("status", "awaiting_payment");
+          if (error) {
+            throw new Error(
+              `checkout.session.completed run update failed: ${error.message}`,
+            );
+          }
         }
         break;
       }
 
+      case "customer.subscription.created":
       case "customer.subscription.updated": {
-        // Covers trialing -> active, active -> past_due, and a scheduled
-        // end-of-period cancellation (status stays active/trialing while
-        // cancel_at_period_end flips to true; access continues until the
-        // period ends and a deleted event arrives).
         const subscription = event.data.object as Stripe.Subscription;
-        await supabase
-          .from("members")
-          .update({
-            subscription_status: mapStatus(subscription.status),
-            cancel_at_period_end: subscription.cancel_at_period_end ?? false,
-          })
-          .eq("stripe_subscription_id", subscription.id);
+        const failure = await handleSubscriptionLifecycle(subscription);
+        if (failure) return failure;
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        await supabase
-          .from("members")
-          .update({
-            subscription_status: "canceled",
-            cancel_at_period_end: false,
-          })
-          .eq("stripe_subscription_id", subscription.id);
+        const failure = await handleSubscriptionLifecycle(subscription, {
+          asDeleted: true,
+        });
+        if (failure) return failure;
         break;
       }
 
       case "invoice.payment_failed": {
+        // Only touch subscription_status. Do not reset cancellation fields.
         const invoice = event.data.object as Stripe.Invoice & {
           subscription?: string | null;
         };
         const subscriptionId =
           typeof invoice.subscription === "string" ? invoice.subscription : null;
-        if (subscriptionId) {
-          await supabase
-            .from("members")
-            .update({ subscription_status: "past_due" })
-            .eq("stripe_subscription_id", subscriptionId);
+        const customerId =
+          typeof invoice.customer === "string" ? invoice.customer : null;
+
+        const member =
+          (subscriptionId
+            ? await findMemberBySubscriptionId(subscriptionId)
+            : null) ??
+          (customerId ? await findMemberByCustomerId(customerId) : null);
+
+        if (!member) {
+          logDevWarning(
+            `[stripe webhook] invoice.payment_failed: no member for subscription=${subscriptionId} customer=${customerId}`,
+          );
+          break;
+        }
+
+        const { data, error } = await supabase
+          .from("members")
+          .update({ subscription_status: "past_due" })
+          .eq("id", member.id)
+          .select("id")
+          .maybeSingle();
+
+        if (error) {
+          throw new Error(`invoice.payment_failed update failed: ${error.message}`);
+        }
+        if (!data) {
+          throw new Error(
+            `invoice.payment_failed matched zero members for id ${member.id}.`,
+          );
         }
         break;
       }
@@ -138,6 +252,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Webhook handler failed.";
+    console.error("[stripe webhook]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 

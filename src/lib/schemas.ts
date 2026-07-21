@@ -1,19 +1,26 @@
 import { z } from "zod";
+import { normalizeUsPhone } from "./phone";
 
 const dateString = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose a date." });
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose an exact date." });
 
 const clockString = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Use a valid time." });
 
-const phoneString = z
-  .string()
-  .trim()
-  .min(7, { error: "Enter a valid phone number." })
-  .max(20, { error: "That phone number looks too long." })
-  .regex(/^[+()\-\s\d]+$/, { error: "Enter a valid phone number." });
+/** Accept formatted input, emit canonical `+1XXXXXXXXXX`. */
+const phoneString = z.string().trim().transform((value, ctx) => {
+  const result = normalizeUsPhone(value);
+  if (!result.ok) {
+    ctx.addIssue({
+      code: "custom",
+      message: result.error,
+    });
+    return z.NEVER;
+  }
+  return result.phone;
+});
 
 export const timeWindowSchema = z.object({
   date: dateString,
@@ -77,3 +84,33 @@ export type AcceptRunInput = z.infer<typeof acceptRunSchema>;
 export const declineRunSchema = z.object({
   token: z.string().trim().min(10),
 });
+
+/** First human-readable Zod issue for safer API responses. */
+export function firstZodErrorMessage(
+  error: z.ZodError,
+  fallback = "Please check the plan details and try again.",
+): string {
+  const issue = error.issues[0];
+  if (!issue) return fallback;
+
+  const path = issue.path.join(".");
+  const message = issue.message;
+
+  if (path.includes("initiatorPhone") || path.includes("friendPhone")) {
+    return message || "Invalid phone number.";
+  }
+  if (path.includes("initiatorEmail")) {
+    return message || "Enter a valid email.";
+  }
+  if (path.includes("timeOptionOne.date") || path.includes("timeOptionTwo.date")) {
+    return "Missing exact date.";
+  }
+  if (path.includes("timeOptionOne") || path.includes("timeOptionTwo")) {
+    return message || "Invalid time window.";
+  }
+  if (path.includes("restaurantLink")) {
+    return message || "Enter a valid restaurant link.";
+  }
+
+  return message || fallback;
+}

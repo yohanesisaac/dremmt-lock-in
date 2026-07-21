@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { SiteFooter, Logo, primaryButton, eyebrowClass } from "@/components/ui";
+import { SiteFooter, Logo, primaryButton } from "@/components/ui";
+import { TextInitiatorButton } from "@/components/locked/TextInitiatorButton";
 import { getRunByToken } from "@/lib/data";
-import { rewardConfig } from "@/config/reward";
+import { buildSmsHref, friendInSmsMessage } from "@/lib/invite-ui";
 import { formatTimeWindow } from "@/lib/time-windows";
 
 export default async function LockedPage({
@@ -30,7 +31,7 @@ export default async function LockedPage({
     return shell(
       <section className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
         <h1 className="text-2xl text-navy">We couldn&apos;t find that run</h1>
-        <p className="mt-3 text-navy">The link may be incomplete.</p>
+        <p className="mt-3 text-muted">The link may be incomplete.</p>
       </section>,
     );
   }
@@ -39,9 +40,6 @@ export default async function LockedPage({
     return shell(
       <section className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
         <h1 className="text-2xl text-navy">This run isn&apos;t locked yet</h1>
-        <p className="mt-3 text-navy">
-          It still needs a time picked. Open the invitation to lock it in.
-        </p>
         <div className="mt-6">
           <Link href={`/invite/${token}`} className={primaryButton}>
             Open the invitation
@@ -52,53 +50,34 @@ export default async function LockedPage({
   }
 
   const window = run.selected_time ?? run.time_option_one;
+  const acceptedLabel = formatTimeWindow(window);
+  const smsMessage = friendInSmsMessage(run.restaurant_name, window);
+  const smsHref = buildSmsHref(run.initiator_phone, smsMessage);
 
   return shell(
-    <section className="space-y-6">
-      <div>
-        <p className={eyebrowClass}>Locked in</p>
-        <h1 className="mt-1 text-4xl text-navy">Run locked.</h1>
+    <section className="space-y-8">
+      <h1 className="text-4xl text-navy">You&apos;re locked in.</h1>
+
+      <div className="space-y-2">
+        <p className="text-3xl font-semibold text-navy">{run.restaurant_name}</p>
+        <p className="text-xl text-navy">{acceptedLabel}</p>
+        <p className="text-lg font-medium text-navy">At least $6 locked</p>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
-        <p className="text-lg font-semibold text-navy">
-          {run.initiator_name} &amp; {run.friend_name}
+      <div className="space-y-2">
+        <p className="text-lg text-navy">
+          Go during this window and send one food or table photo.
         </p>
-        <dl className="mt-4 space-y-3">
-          <div>
-            <dt className={eyebrowClass}>Where</dt>
-            <dd className="text-lg text-navy">{run.restaurant_name}</dd>
-            {run.location ? <dd className="text-muted">{run.location}</dd> : null}
-          </div>
-          <div>
-            <dt className={eyebrowClass}>When</dt>
-            <dd className="text-lg text-navy">{formatTimeWindow(window)}</dd>
-          </div>
-        </dl>
-        {run.restaurant_link ? (
-          <a
-            href={run.restaurant_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-block text-sm font-medium text-orange-deep underline underline-offset-4"
-          >
-            Open restaurant link
-          </a>
-        ) : null}
+        <p className="text-sm text-muted">
+          A Dremmt number starting with 424 will text you on the day. Reply there
+          with the photo.
+        </p>
       </div>
 
-      <div className="rounded-lg border border-orange/40 bg-orange/5 p-6">
-        <p className={eyebrowClass}>{rewardConfig.title}</p>
-        <h2 className="mt-1 text-2xl text-navy">{rewardConfig.photoHeading}</h2>
-        <p className="mt-2 text-navy">{rewardConfig.photoDescription}</p>
-        <p className="mt-1 text-sm text-muted">{rewardConfig.photoNote}</p>
-        <p className="mt-3 text-sm text-muted">{rewardConfig.deliveryNote}</p>
-      </div>
-
-      <p className="text-sm text-muted">
-        Dremmt does not hold a reservation at the restaurant. Make a separate
-        reservation if the spot needs one.
-      </p>
+      <TextInitiatorButton
+        initiatorName={run.initiator_name}
+        smsHref={smsHref}
+      />
     </section>,
   );
 }

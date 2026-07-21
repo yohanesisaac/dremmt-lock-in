@@ -34,9 +34,13 @@ create table if not exists public.members (
       'incomplete', 'active', 'trialing', 'past_due',
       'canceled', 'unpaid', 'inactive'
     )),
-  -- Set true when the member schedules cancellation for the end of the current
-  -- period. They keep access until Stripe sends subscription.deleted.
+  -- Raw Stripe boolean (subscription.cancel_at_period_end). Not a general
+  -- "cancellation scheduled" flag — see access_ends_at / cancellation_requested_at.
   cancel_at_period_end     boolean not null default false,
+  -- Stripe subscription.canceled_at (when cancellation was requested).
+  cancellation_requested_at timestamptz null,
+  -- Stripe subscription.cancel_at (when access is scheduled to end).
+  access_ends_at           timestamptz null,
   member_access_token      text not null unique,
   -- Deprecated / unused by the app: the trial/monthly reward allowance (see
   -- reserve_reward below) is computed directly from `runs`, not from
@@ -51,6 +55,9 @@ create index if not exists members_stripe_customer_idx
   on public.members (stripe_customer_id);
 create index if not exists members_stripe_subscription_idx
   on public.members (stripe_subscription_id);
+-- Non-unique: duplicate phones already exist in some pilot databases.
+create index if not exists members_phone_idx
+  on public.members (phone);
 
 drop trigger if exists members_set_updated_at on public.members;
 create trigger members_set_updated_at

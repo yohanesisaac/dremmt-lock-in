@@ -14,6 +14,7 @@ import {
   completionFollowUp,
   FEEDBACK_OPTIONS,
 } from "@/lib/messages";
+import { formatCancellationLabel } from "@/lib/stripe-cancellation";
 import { formatTimeWindowShort } from "@/lib/time-windows";
 import type { MemberRow, RunRow, RunStatus } from "@/lib/types";
 
@@ -96,7 +97,20 @@ export function AdminRunCard({
         <Row label="Run status" value={STATUS_LABEL[run.status]} />
         <Row
           label="Membership status"
-          value={member?.subscription_status ?? "no member"}
+          value={
+            member
+              ? [
+                  member.subscription_status,
+                  formatCancellationLabel({
+                    subscriptionStatus: member.subscription_status,
+                    cancelAtPeriodEnd: member.cancel_at_period_end,
+                    accessEndsAt: member.access_ends_at,
+                  }),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "no member"
+          }
         />
         <Row label="Reward status" value={run.reward_status} />
         <Row

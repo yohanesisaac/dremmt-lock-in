@@ -16,6 +16,7 @@ import {
 import { PlanCard } from "@/components/PlanCard";
 import { Scheduler, type SchedulerTab } from "@/components/create/Scheduler";
 import { comboToWindow, type DateTimeCombo } from "@/lib/time-windows";
+import { normalizeUsPhone } from "@/lib/phone";
 import { rewardConfig } from "@/config/reward";
 import type { TimeWindow } from "@/lib/types";
 
@@ -23,36 +24,17 @@ const TOTAL_STEPS = 5;
 
 type View = "steps" | "preview" | "paywall" | "allowance-reached";
 
-export function CreateFlow({
-  isActiveMember,
-  isTrial,
-  allowanceLimit,
-  allowanceRemaining,
-  allowanceLimitReached,
-  resetDateLabel,
-  canceled,
-}: {
-  isActiveMember: boolean;
-  isTrial: boolean;
-  allowanceLimit: number;
-  allowanceRemaining: number | null;
-  allowanceLimitReached: boolean;
-  resetDateLabel: string | null;
-  canceled: boolean;
-}) {
+export function CreateFlow({ canceled }: { canceled: boolean }) {
   const router = useRouter();
 
-  const memberAllowanceBlocked = isActiveMember && allowanceLimitReached;
-
   const [step, setStep] = useState(1);
-  const [view, setView] = useState<View>(
-    memberAllowanceBlocked ? "allowance-reached" : "steps",
-  );
+  const [view, setView] = useState<View>("steps");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [resetDate, setResetDate] = useState<string | null>(resetDateLabel);
-  const [reachedIsTrial, setReachedIsTrial] = useState(isTrial);
+  const [resetDate, setResetDate] = useState<string | null>(null);
+  const [reachedIsTrial, setReachedIsTrial] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [allowanceLimit, setAllowanceLimit] = useState(2);
 
   const [initiatorName, setInitiatorName] = useState("");
   const [friendName, setFriendName] = useState("");
@@ -87,8 +69,8 @@ export function CreateFlow({
         next.restaurantName = "Add the restaurant name.";
     }
     if (current === 5) {
-      if (initiatorPhone.trim().length < 7)
-        next.initiatorPhone = "Enter a valid phone number.";
+      const phone = normalizeUsPhone(initiatorPhone);
+      if (!phone.ok) next.initiatorPhone = phone.error;
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(initiatorEmail.trim()))
         next.initiatorEmail = "Enter a valid email.";
       if (!consent)
@@ -170,6 +152,9 @@ export function CreateFlow({
       if (data.allowanceReached) {
         setResetDate(data.resetDate ?? null);
         setReachedIsTrial(Boolean(data.isTrial));
+        if (typeof data.allowanceLimit === "number") {
+          setAllowanceLimit(data.allowanceLimit);
+        }
         setView("allowance-reached");
         setSubmitting(false);
         return;
@@ -187,11 +172,9 @@ export function CreateFlow({
   }
 
   function handleContinueFromPreview() {
-    if (isActiveMember) {
-      submit();
-    } else {
-      setView("paywall");
-    }
+    // Always show the paywall. Checkout bypass is decided server-side from the
+    // submitted phone — never from a cookie or prior browser session.
+    setView("paywall");
   }
 
   if (view === "allowance-reached") {
@@ -236,14 +219,6 @@ export function CreateFlow({
         <p className="mb-6 rounded-md border border-border-strong bg-cream px-4 py-3 text-sm text-navy">
           Checkout was canceled. Your plan is still here — continue when
           you&apos;re ready.
-        </p>
-      ) : null}
-
-      {isActiveMember && allowanceRemaining !== null ? (
-        <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-navy">
-          {isTrial
-            ? "1 free plan available during your trial"
-            : `${allowanceRemaining} of ${allowanceLimit} plans left this month`}
         </p>
       ) : null}
 

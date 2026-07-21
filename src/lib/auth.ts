@@ -28,7 +28,14 @@ export async function isAdminAuthenticated(): Promise<boolean> {
   return isValidAdminCookie(store.get(ADMIN_COOKIE)?.value);
 }
 
-/** Look up the member tied to the secure membership-access cookie, if any. */
+/**
+ * Look up the member tied to the membership-access cookie, if any.
+ *
+ * IMPORTANT: This cookie is UI convenience only (e.g. set after Stripe verify).
+ * It must NEVER be used as proof of trialing/active membership for Checkout
+ * bypass. Membership eligibility is determined solely by the submitted
+ * normalized phone number against the database.
+ */
 export async function getMemberFromCookie(): Promise<MemberRow | null> {
   const store = await cookies();
   const token = store.get(MEMBER_COOKIE)?.value;

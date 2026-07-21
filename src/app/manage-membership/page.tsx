@@ -1,5 +1,5 @@
 import { SiteHeader, SiteFooter, accentButton } from "@/components/ui";
-import { stripeCustomerPortalUrl } from "@/lib/env";
+import { dremmtPhone, stripeCustomerPortalUrl } from "@/lib/env";
 
 export const metadata = {
   title: "Manage your membership — Dremmt Lock-In",
@@ -8,6 +8,7 @@ export const metadata = {
 export default function ManageMembershipPage() {
   const portalUrl = stripeCustomerPortalUrl();
   const isDev = process.env.NODE_ENV !== "production";
+  const helpPhone = dremmtPhone() || "424-219-6970";
 
   return (
     <>
@@ -40,6 +41,9 @@ export default function ManageMembershipPage() {
               <p className="text-navy">
                 Cancel before your free trial ends and you will not be charged.
               </p>
+              <p className="text-muted">
+                If you need additional help, text {helpPhone} on Messages.
+              </p>
             </div>
           ) : (
             <div className="rounded-lg border border-border-strong bg-cream p-6">
@@ -68,6 +72,9 @@ export default function ManageMembershipPage() {
                   cancel or update your membership.
                 </p>
               )}
+              <p className="mt-4 text-muted">
+                If you need additional help, text {helpPhone} on Messages.
+              </p>
             </div>
           )}
         </div>
