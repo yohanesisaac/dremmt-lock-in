@@ -1,9 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { siteUrl } from "@/lib/env";
+import { resolveSiteUrl } from "@/lib/env";
 import { MEMBER_COOKIE, memberCookieOptions } from "@/lib/auth";
 import { buildSubscriptionSyncPatch } from "@/lib/stripe-webhook-sync";
+import {
+  VERIFY_RUN_READY_STATUSES,
+  buildStripeVerifyRedirect,
+} from "@/lib/stripe-verify-redirect";
 
 /**
  * Stripe success_url target. Verifies the Checkout Session server-side, marks
@@ -14,13 +18,38 @@ import { buildSubscriptionSyncPatch } from "@/lib/stripe-webhook-sync";
  * Cancellation fields are written from the live Stripe Subscription via the
  * shared normalizer — never invent cancel_at_period_end=false or clear
  * access_ends_at without Stripe saying so.
+ *
+ * Reloading this URL is idempotent: runs already `ready` are re-selected, and
+ * no duplicate members / subscriptions / allowance usage are created.
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  let origin: string;
+  try {
+    origin = resolveSiteUrl(request);
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Could not resolve a public site URL for redirects.";
+    console.error("[stripe/verify] origin resolution failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("session_id");
-  const failure = NextResponse.redirect(`${siteUrl()}/checkout/success?error=1`);
 
-  if (!sessionId) return failure;
+  console.log(`[stripe/verify] resolved origin: ${origin}`);
+  if (sessionId) {
+    console.log(`[stripe/verify] session_id: ${sessionId}`);
+  }
+
+  const failureRedirect = buildStripeVerifyRedirect(origin, { error: true });
+  const failure = NextResponse.redirect(failureRedirect.url);
+
+  if (!sessionId) {
+    console.log(`[stripe/verify] redirect: ${failureRedirect.pathname}`);
+    return failure;
+  }
 
   const stripe = getStripe();
 
@@ -28,6 +57,7 @@ export async function GET(request: Request) {
   try {
     session = await stripe.checkout.sessions.retrieve(sessionId);
   } catch {
+    console.log(`[stripe/verify] redirect: ${failureRedirect.pathname}`);
     return failure;
   }
 
@@ -36,7 +66,10 @@ export async function GET(request: Request) {
     session.status === "complete" ||
     session.payment_status === "paid" ||
     session.payment_status === "no_payment_required";
-  if (!checkoutOk) return failure;
+  if (!checkoutOk) {
+    console.log(`[stripe/verify] redirect: ${failureRedirect.pathname}`);
+    return failure;
+  }
 
   const memberId = session.metadata?.member_id;
   const runId = session.metadata?.run_id;
@@ -90,7 +123,7 @@ export async function GET(request: Request) {
       .from("runs")
       .update({ status: "ready" })
       .eq("id", runId)
-      .in("status", ["awaiting_payment", "ready"])
+      .in("status", [...VERIFY_RUN_READY_STATUSES])
       .select("invite_token")
       .maybeSingle();
     inviteToken = data?.invite_token ?? null;
@@ -105,7 +138,10 @@ export async function GET(request: Request) {
     }
   }
 
-  if (!inviteToken) return failure;
+  if (!inviteToken) {
+    console.log(`[stripe/verify] redirect: ${failureRedirect.pathname}`);
+    return failure;
+  }
 
   let memberAccessToken: string | null = null;
   if (memberId) {
@@ -117,9 +153,10 @@ export async function GET(request: Request) {
     memberAccessToken = member?.member_access_token ?? null;
   }
 
-  const response = NextResponse.redirect(
-    `${siteUrl()}/checkout/success?token=${inviteToken}`,
-  );
+  const successRedirect = buildStripeVerifyRedirect(origin, { inviteToken });
+  console.log(`[stripe/verify] redirect: ${successRedirect.pathname}`);
+
+  const response = NextResponse.redirect(successRedirect.url);
 
   if (memberAccessToken) {
     response.cookies.set(MEMBER_COOKIE, memberAccessToken, memberCookieOptions());
