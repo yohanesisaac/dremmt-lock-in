@@ -36,11 +36,12 @@ export default function TermsPage() {
             <h2 className="text-xl text-navy">Membership</h2>
             <p className="text-navy">
               After the trial, Dremmt membership is $10 per month. Active
-              membership includes two completed, accepted plans per calendar
-              month, each with at least {rewardConfig.guaranteedMinimumLabel}{" "}
-              toward the outing during the pilot. Invited friends join for free
-              and never pay. Declined invitations do not count toward your
-              monthly allowance.
+              membership includes {rewardConfig.monthlyPlanLimit} rewarded,
+              accepted plans per calendar month, each with at least{" "}
+              {rewardConfig.guaranteedMinimumLabel} toward the outing during the
+              pilot. Invited friends join for free and never pay. Declined
+              invitations do not count toward your monthly allowance. Your trial
+              plan does not reduce the later paid monthly allowance.
             </p>
             <p className="text-navy">
               Your monthly allowance resets on the first of each calendar month.

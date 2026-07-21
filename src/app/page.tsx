@@ -3,9 +3,11 @@ import {
   SiteHeader,
   SiteFooter,
   primaryButton,
+  secondaryButton,
   accentButton,
   eyebrowClass,
 } from "@/components/ui";
+import { MoreDetails } from "@/components/MoreDetails";
 import { rewardConfig } from "@/config/reward";
 
 const howItWorksSteps = [
@@ -24,7 +26,8 @@ const howItWorksSteps = [
 ];
 
 const membershipBenefits = [
-  "Two completed plans each month",
+  "3 rewarded plans each calendar month",
+  "1 plan during your 14-day trial",
   "At least $6 toward each completed outing",
   "Invited friends always join free",
   "Declined plans do not count",
@@ -52,12 +55,23 @@ export default function LandingPage() {
                 don&apos;t flake.
               </p>
               <div className="mt-8">
-                <Link href="/create" className={primaryButton}>
-                  Make the plan
-                </Link>
+                <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <Link
+                    href="/create"
+                    className={`${primaryButton} w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-auto sm:min-w-[10.5rem]`}
+                  >
+                    Start free trial
+                  </Link>
+                  <Link
+                    href="/returning-member"
+                    className={`${secondaryButton} w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-auto sm:min-w-[10.5rem]`}
+                  >
+                    I&apos;m already a member
+                  </Link>
+                </div>
                 <p className="mt-3 text-sm text-muted">
-                  First plan free for 14 days · then $10/month · 2 completed
-                  plans each month · friends join free
+                  First plan free for 14 days · then $10/month · 3 plans per
+                  month · friends join free
                 </p>
               </div>
             </div>
@@ -98,11 +112,13 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <MoreDetails />
+
         {/* Membership */}
         <section className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
           <div className="mx-auto max-w-xl rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)] sm:p-9">
             <h2 className="text-2xl text-navy sm:text-3xl">
-              Two little reasons to get out every month.
+              Three little reasons to get out every month.
             </h2>
             <p className="mt-4 text-lg font-medium text-navy">
               Try your first plan free for 14 days.
@@ -120,7 +136,8 @@ export default function LandingPage() {
             </div>
             <p className="mt-3 text-sm text-muted">
               Card required. You won&apos;t be charged during the 14-day trial.
-              Cancel before it ends and you pay nothing.
+              Cancel before it ends and you pay nothing. Your first rewarded
+              plan is included in the trial.
             </p>
             <p className="mt-4 text-sm text-muted">
               <Link

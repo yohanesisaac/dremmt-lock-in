@@ -82,7 +82,7 @@ export async function acceptRun(
   }
 
   // Reserve the member's reward atomically. Trialing members get one rewarded
-  // plan for the whole trial; active members get two per calendar month. If
+  // plan for the whole trial; active members get three per calendar month. If
   // they've already used their allowance, the run is still locked in without
   // the reward attached — declined invitations and time conflicts never reach
   // this point, so they never consume the allowance.

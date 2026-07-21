@@ -79,16 +79,25 @@ and the card `4242 4242 4242 4242`.
 - [ ] A second acceptance during the trial does **not** reserve a reward.
 - [ ] `/create` shows the used-trial message after the trial plan is used.
 
-## Monthly reward allowance (2 completed plans / calendar month)
-> Requires migration `0002` (or fresh `schema.sql`). Active members only.
+## Monthly reward allowance (3 completed plans / calendar month)
+> Requires migrations through `0005` (or fresh `schema.sql`). Active members only.
 - [ ] After activation (`subscription_status = active`), first acceptance this
-      month reserves a reward; `/create` shows “1 of 2 plans left this month”.
-- [ ] After a second acceptance in the same calendar month, `/create` shows
-      “0 of 2 plans left this month” and blocks further rewarded plans with a
-      message naming the next reset date (first of next month).
-- [ ] A third plan accepted the same month does **not** get
+      month reserves a reward; status shows “2 of 3 plans left this month”.
+- [ ] After a second acceptance, status shows “1 of 3 plans left this month”.
+- [ ] After a third acceptance, status shows “0 of 3 plans left this month”
+      and blocks further rewarded plans with a message naming the next reset
+      date (first of next month).
+- [ ] A fourth plan accepted the same month does **not** get
       `reward_status = reserved`.
+- [ ] A prior trial plan (`is_trial_reward`) does **not** reduce the paid 3.
 - [ ] In a new calendar month, the allowance is available again.
+
+## Returning member
+- [ ] Landing “Already a member? Make another plan” opens `/returning-member`.
+- [ ] Known trialing/active phone reaches the status screen (no new member row).
+- [ ] Unknown phone shows “We couldn’t find a membership with that number.”
+- [ ] Inactive phone shows restart + manage actions (no silent access).
+- [ ] Cookies alone cannot grant access without a matching phone lookup.
 
 ## Duplicate acceptance is prevented
 - [ ] Reopening an accepted invite link shows the locked plan (cannot re-accept).
@@ -114,5 +123,5 @@ and the card `4242 4242 4242 4242`.
 
 ## Terms
 - [ ] Terms state 14-day trial, card required, $10/month after trial, one trial
-      plan, two plans/month when active, ≥$6, 24-hour pilot delivery, and
+      plan, three plans/month when active, ≥$6, 24-hour pilot delivery, and
       cancellation via Stripe customer portal.

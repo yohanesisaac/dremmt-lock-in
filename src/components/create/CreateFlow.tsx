@@ -15,16 +15,26 @@ import {
 } from "@/components/ui";
 import { PlanCard } from "@/components/PlanCard";
 import { Scheduler, type SchedulerTab } from "@/components/create/Scheduler";
+import { PhoneField } from "@/components/PhoneField";
 import { comboToWindow, type DateTimeCombo } from "@/lib/time-windows";
 import { normalizeUsPhone } from "@/lib/phone";
 import { rewardConfig } from "@/config/reward";
+import type { ReturningCreateContext } from "@/lib/returning-create-context";
 import type { TimeWindow } from "@/lib/types";
 
 const TOTAL_STEPS = 5;
 
 type View = "steps" | "preview" | "paywall" | "allowance-reached";
 
-export function CreateFlow({ canceled }: { canceled: boolean }) {
+export function CreateFlow({
+  canceled,
+  returningContext = null,
+  restartMode = false,
+}: {
+  canceled: boolean;
+  returningContext?: ReturningCreateContext | null;
+  restartMode?: boolean;
+}) {
   const router = useRouter();
 
   const [step, setStep] = useState(1);
@@ -34,9 +44,13 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
   const [resetDate, setResetDate] = useState<string | null>(null);
   const [reachedIsTrial, setReachedIsTrial] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [allowanceLimit, setAllowanceLimit] = useState(2);
+  const [allowanceLimit, setAllowanceLimit] = useState(
+    returningContext?.limit ?? rewardConfig.monthlyPlanLimit,
+  );
 
-  const [initiatorName, setInitiatorName] = useState("");
+  const [initiatorName, setInitiatorName] = useState(
+    returningContext?.firstName ?? "",
+  );
   const [friendName, setFriendName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantLink, setRestaurantLink] = useState("");
@@ -49,9 +63,16 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
   const [schedulerTab, setSchedulerTab] = useState<SchedulerTab>("days");
 
   const [personalMessage, setPersonalMessage] = useState("");
-  const [initiatorPhone, setInitiatorPhone] = useState("");
-  const [initiatorEmail, setInitiatorEmail] = useState("");
+  const [initiatorPhone, setInitiatorPhone] = useState(
+    returningContext?.phoneDisplay ?? "",
+  );
+  const [initiatorEmail, setInitiatorEmail] = useState(
+    returningContext?.email ?? "",
+  );
   const [consent, setConsent] = useState(false);
+
+  const skipPaywall =
+    Boolean(returningContext?.hasValidAccess) && !restartMode;
 
   const previewWindows: TimeWindow[] = useMemo(() => {
     const order = [...combos].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -172,8 +193,12 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
   }
 
   function handleContinueFromPreview() {
-    // Always show the paywall. Checkout bypass is decided server-side from the
-    // submitted phone — never from a cookie or prior browser session.
+    // Returning members with valid access skip the paywall; Checkout still
+    // revalidates by submitted phone on the server.
+    if (skipPaywall) {
+      void submit();
+      return;
+    }
     setView("paywall");
   }
 
@@ -186,18 +211,19 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
               You&apos;ve used your free trial plan
             </h1>
             <p className="mt-3 text-navy">
-              Your trial includes one completed plan. Once your membership
-              begins, you&apos;ll get two completed plans every calendar month.
+              Your trial includes one rewarded plan. Once your membership
+              begins, you&apos;ll get {rewardConfig.monthlyPlanLimit} rewarded
+              plans every calendar month.
             </p>
           </>
         ) : (
           <>
             <h1 className="text-2xl text-navy">
-              You&apos;ve used both plans this month
+              You&apos;ve used all {allowanceLimit} plans this month
             </h1>
             <p className="mt-3 text-navy">
               Your membership is active, but you&apos;ve already locked in{" "}
-              {allowanceLimit} completed plans this month.
+              {allowanceLimit} rewarded plans this month.
             </p>
             {resetDate ? (
               <p className="mt-2 text-navy">
@@ -219,6 +245,18 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
         <p className="mb-6 rounded-md border border-border-strong bg-cream px-4 py-3 text-sm text-navy">
           Checkout was canceled. Your plan is still here — continue when
           you&apos;re ready.
+        </p>
+      ) : null}
+
+      {returningContext?.hasValidAccess ? (
+        <p className="mb-6 rounded-md border border-border bg-surface px-4 py-3 text-sm text-navy">
+          {returningContext.isTrial
+            ? returningContext.remaining > 0
+              ? "1 free plan available during your trial"
+              : "You've used your trial plan"
+            : returningContext.limitReached
+              ? `0 of ${returningContext.limit} plans left this month`
+              : `${returningContext.remaining} of ${returningContext.limit} plans left this month`}
         </p>
       ) : null}
 
@@ -343,21 +381,13 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
                 heading="Where should Dremmt reach you?"
                 hint="Dremmt will use this information for this plan, membership updates, and your day-of reminder."
               >
-                <Field
+                <PhoneField
                   id="initiatorPhone"
-                  label="Your phone number"
+                  label="Phone number"
+                  value={initiatorPhone}
+                  onChange={setInitiatorPhone}
                   error={errors.initiatorPhone}
-                >
-                  <input
-                    id="initiatorPhone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    className={inputClass}
-                    value={initiatorPhone}
-                    onChange={(e) => setInitiatorPhone(e.target.value)}
-                  />
-                </Field>
+                />
                 <Field
                   id="initiatorEmail"
                   label="Your email"
@@ -444,24 +474,51 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl text-navy sm:text-3xl">
-              Try your first plan free for 14 days.
+              {restartMode || returningContext?.isRestart
+                ? "Restart your membership."
+                : "Try your first plan free for 14 days."}
             </h1>
             <p className="mt-3 text-lg text-navy">
-              You won&apos;t be charged today. After 14 days, membership is
-              $10/month unless you cancel.
+              {restartMode || returningContext?.isRestart
+                ? "Membership is $10/month. Your first rewarded plan during a prior trial does not reduce your paid monthly allowance."
+                : "You won't be charged today. After 14 days, membership is $10/month unless you cancel."}
             </p>
             <p className="mt-2 text-navy">
-              Your membership includes two completed plans each calendar month
-              after the trial.
+              Your membership includes {rewardConfig.monthlyPlanLimit} rewarded
+              plans each calendar month
+              {restartMode || returningContext?.isRestart
+                ? "."
+                : " after the trial."}
             </p>
           </div>
           <div className="rounded-lg border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
-            <p className="text-3xl font-semibold text-navy">
-              Free for {rewardConfig.trialDays} days
-            </p>
-            <p className="mt-1 text-navy">then $10/month</p>
+            {restartMode || returningContext?.isRestart ? (
+              <>
+                <p className="text-3xl font-semibold text-navy">$10/month</p>
+                <p className="mt-1 text-navy">
+                  {rewardConfig.monthlyPlanLimit} rewarded plans each calendar
+                  month
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-semibold text-navy">
+                  Free for {rewardConfig.trialDays} days
+                </p>
+                <p className="mt-1 text-navy">then $10/month</p>
+              </>
+            )}
             <ul className="mt-4 space-y-2 text-navy">
-              <li>· Two completed plans every month after the trial</li>
+              <li>
+                · {rewardConfig.monthlyPlanLimit} rewarded plans each calendar
+                month
+                {restartMode || returningContext?.isRestart
+                  ? ""
+                  : " after the trial"}
+              </li>
+              {!restartMode && !returningContext?.isRestart ? (
+                <li>· 1 plan during your 14-day trial</li>
+              ) : null}
               <li>· At least $6 toward each completed outing</li>
               <li>· Invited friends always join free</li>
               <li>· Declined plans do not count</li>
@@ -479,13 +536,17 @@ export function CreateFlow({ canceled }: { canceled: boolean }) {
               onClick={submit}
               disabled={submitting}
             >
-              {submitting ? "Redirecting to checkout…" : "Try your first plan free"}
+              {submitting
+                ? "Redirecting to checkout…"
+                : restartMode || returningContext?.isRestart
+                  ? "Restart membership"
+                  : "Try your first plan free"}
             </button>
           </div>
           <p className={hintClass}>
-            Card required. You won&apos;t be charged during the 14-day trial.
-            Cancel before it ends and you pay nothing. Payment is handled
-            securely by Stripe.
+            {restartMode || returningContext?.isRestart
+              ? "Payment is handled securely by Stripe. Prior trial history is not automatically renewed."
+              : "Card required. You won't be charged during the 14-day trial. Cancel before it ends and you pay nothing. Payment is handled securely by Stripe."}
           </p>
           <p className="text-sm text-muted">
             <Link href="/manage-membership" className="underline underline-offset-4">

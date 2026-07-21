@@ -10,7 +10,7 @@ export const rewardConfig = {
   guaranteedMinimumLabel: "$6",
 
   /** How many completed plans can carry that guarantee per calendar month. */
-  monthlyPlanLimit: 2,
+  monthlyPlanLimit: 3,
 
   /** Length of the free trial before the first charge. */
   trialDays: 14,

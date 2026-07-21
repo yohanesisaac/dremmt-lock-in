@@ -2,9 +2,9 @@
 
 A responsive pilot website: a friend commitment + reward system. Pick a friend,
 a restaurant, and a day; get the friend to accept one proposed window; unlock
-at least $6 toward that outing (up to two completed plans per calendar month
-after a 14-day free trial); monitor everything from a private admin dashboard
-and text reminders manually.
+at least $6 toward that outing (up to three completed plans per calendar month
+after a 14-day free trial with one rewarded plan); monitor everything from a
+private admin dashboard and text reminders manually.
 
 Stack: Next.js (App Router) · TypeScript · Tailwind CSS v4 · Supabase · Stripe ·
 Zod.
@@ -41,8 +41,11 @@ npm install
 >
 > 1. [`supabase/migrations/0001_monthly_reward_allowance.sql`](./supabase/migrations/0001_monthly_reward_allowance.sql)
 > 2. [`supabase/migrations/0002_trial_allowance.sql`](./supabase/migrations/0002_trial_allowance.sql)
+> 3. [`supabase/migrations/0003_members_phone_lookup.sql`](./supabase/migrations/0003_members_phone_lookup.sql)
+> 4. [`supabase/migrations/0004_cancellation_normalized_fields.sql`](./supabase/migrations/0004_cancellation_normalized_fields.sql)
+> 5. [`supabase/migrations/0005_paid_allowance_three_and_trial_flag.sql`](./supabase/migrations/0005_paid_allowance_three_and_trial_flag.sql)
 >
-> Both are non-destructive and idempotent — safe to re-run.
+> These are non-destructive and idempotent — safe to re-run.
 
 ## 4. Add environment variables
 
@@ -159,9 +162,10 @@ Use Stripe test mode and card `4242 4242 4242 4242`:
 6. **Trialing → active** — either wait for the trial to end in test clocks, or
    advance a Stripe test clock. Confirm `customer.subscription.updated` sets
    `subscription_status` to `active`.
-7. **Two plans per calendar month after activation** — once `active`, accept
-   two plans in the same calendar month (`reward_status = reserved`), then
-   confirm a third acceptance does not reserve a reward.
+7. **Three plans per calendar month after activation** — once `active`, accept
+   three plans in the same calendar month (`reward_status = reserved`), then
+   confirm a fourth acceptance does not reserve a reward. Trial rewards must
+   not reduce the paid monthly count (`is_trial_reward`).
 
 ## 9. Start the local server
 

@@ -70,6 +70,8 @@ export interface RunRow {
   friend_sms_consent: boolean;
   status: RunStatus;
   reward_status: RewardStatus;
+  /** True when reserved during a Stripe trial; excluded from paid monthly counts. */
+  is_trial_reward: boolean;
   feedback: string | null;
   created_at: string;
   updated_at: string;

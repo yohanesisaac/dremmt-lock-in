@@ -92,6 +92,9 @@ create table if not exists public.runs (
     )),
   reward_status          text not null default 'none'
     check (reward_status in ('none', 'reserved', 'sent', 'released')),
+  -- True when the reward was reserved during a Stripe trial. Excluded from
+  -- paid monthly allowance counts so trial usage never reduces the later 3.
+  is_trial_reward        boolean not null default false,
   feedback               text,
   created_at             timestamptz not null default now(),
   updated_at             timestamptz not null default now(),
@@ -120,7 +123,8 @@ create trigger runs_set_updated_at
 -- A member may activate at most `p_limit` rewarded accepted plans:
 --   * p_trial = true  -> one rewarded plan for the whole 14-day trial (counts
 --     every reserved/sent reward, ignoring the month).
---   * p_trial = false -> two per calendar month once active.
+--   * p_trial = false -> three per calendar month once active (trial rewards
+--     marked is_trial_reward are excluded from the monthly count).
 -- Only accepted plans with a reserved/sent reward count; declined invitations
 -- and time conflicts never reach this function. The `for update` row lock on
 -- the member serializes concurrent attempts, so the limit can never be
@@ -154,13 +158,15 @@ begin
     from public.runs
     where member_id = p_member_id
       and reward_status in ('reserved', 'sent')
+      and coalesce(is_trial_reward, false) = false
       and accepted_at >= month_start
       and accepted_at < month_end;
   end if;
 
   if used_count < p_limit then
     update public.runs
-       set reward_status = 'reserved'
+       set reward_status = 'reserved',
+           is_trial_reward = p_trial
      where id = p_run_id
        and member_id = p_member_id
        and reward_status = 'none';

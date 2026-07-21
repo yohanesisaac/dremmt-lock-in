@@ -13,6 +13,7 @@ import {
   getMemberAllowance,
   formatResetDate,
 } from "@/lib/reward-period";
+import { shouldOfferCheckoutTrial } from "@/lib/returning-member";
 import { rewardConfig } from "@/config/reward";
 import type { MemberRow, TimeWindow } from "@/lib/types";
 
@@ -197,6 +198,8 @@ export async function POST(request: Request) {
 
   const stripe = getStripe();
   const existingCustomerId = member.stripe_customer_id ?? undefined;
+  // Do not silently grant a second free trial to returning / prior customers.
+  const offerTrial = shouldOfferCheckoutTrial(member);
 
   try {
     if (existingCustomerId) {
@@ -215,10 +218,14 @@ export async function POST(request: Request) {
       metadata: { run_id: run.id, member_id: member.id },
       payment_method_collection: "always",
       subscription_data: {
-        trial_period_days: rewardConfig.trialDays,
-        trial_settings: {
-          end_behavior: { missing_payment_method: "cancel" },
-        },
+        ...(offerTrial
+          ? {
+              trial_period_days: rewardConfig.trialDays,
+              trial_settings: {
+                end_behavior: { missing_payment_method: "cancel" },
+              },
+            }
+          : {}),
         metadata: { run_id: run.id, member_id: member.id },
       },
       success_url: `${siteUrl()}/api/stripe/verify?session_id={CHECKOUT_SESSION_ID}`,

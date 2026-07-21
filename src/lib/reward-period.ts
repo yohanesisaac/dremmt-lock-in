@@ -51,9 +51,8 @@ export interface MonthlyAllowance {
  * A member's completed-plan allowance for the current calendar month.
  *
  * Only ACCEPTED plans whose reward was reserved or sent count toward the
- * limit. Declined invitations, time conflicts, and admin-released rewards
- * never count. This reads directly from `runs` — there is no per-member
- * counter to fall out of sync.
+ * limit. Trial rewards (`is_trial_reward`) are excluded so they never reduce
+ * the paid monthly allowance. Declines and admin-released rewards never count.
  */
 export async function getMonthlyAllowance(
   memberId: string,
@@ -67,6 +66,7 @@ export async function getMonthlyAllowance(
     .select("id", { count: "exact", head: true })
     .eq("member_id", memberId)
     .in("reward_status", ["reserved", "sent"])
+    .eq("is_trial_reward", false)
     .gte("accepted_at", start.toISOString())
     .lt("accepted_at", end.toISOString());
 
@@ -122,7 +122,7 @@ export async function getTrialAllowance(
 
 /**
  * The plan allowance appropriate for a member's current subscription state:
- * one plan total while trialing, two per calendar month once active.
+ * one plan total while trialing, three per calendar month once active.
  */
 export async function getMemberAllowance(
   member: Pick<MemberRow, "id" | "subscription_status">,
@@ -137,12 +137,12 @@ export async function getMemberAllowance(
 /**
  * Atomically reserves this member's reward for a run they just accepted, but
  * only if they are still under their allowance. Backed by the
- * `reserve_reward` Postgres function (see
- * supabase/migrations/0002_trial_allowance.sql) so two invitations accepted at
- * the same instant can never both slip past the limit.
+ * `reserve_reward` Postgres function so two invitations accepted at the same
+ * instant can never both slip past the limit.
  *
  * During the trial the limit is one rewarded plan for the whole trial; once
- * active it is two rewarded plans per calendar month.
+ * active it is three rewarded plans per calendar month. Trial reservations are
+ * marked `is_trial_reward` so they do not reduce the later paid allowance.
  */
 export async function reserveReward(
   runId: string,

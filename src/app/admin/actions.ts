@@ -85,7 +85,7 @@ export async function markRewardSent(formData: FormData): Promise<void> {
 
 /**
  * Manually release this run's reward. Released plans no longer count toward
- * the member's two-per-month allowance, freeing up a slot for that month.
+ * the member's three-per-month allowance, freeing up a slot for that month.
  */
 export async function releaseReward(formData: FormData): Promise<void> {
   await requireAdmin();

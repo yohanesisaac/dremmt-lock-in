@@ -6,10 +6,9 @@ import {
   primaryButton,
   secondaryButton,
   ghostButton,
-  inputClass,
-  labelClass,
   errorTextClass,
 } from "@/components/ui";
+import { PhoneField } from "@/components/PhoneField";
 import { acceptRun, declineRun, type AcceptState } from "@/app/invite/[token]/actions";
 
 interface Option {
@@ -26,6 +25,7 @@ export function InviteForm({
 }) {
   const [selected, setSelected] = useState<1 | 2 | null>(null);
   const [phase, setPhase] = useState<"choosing" | "confirming">("choosing");
+  const [friendPhone, setFriendPhone] = useState("");
   const [state, formAction] = useActionState<AcceptState, FormData>(acceptRun, {});
 
   return (
@@ -98,23 +98,15 @@ export function InviteForm({
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="selectedOption" value={selected ?? ""} />
 
-          <div className="space-y-1.5">
-            <label htmlFor="friendPhone" className={labelClass}>
-              Your phone number
-            </label>
-            <input
-              id="friendPhone"
-              name="friendPhone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              required
-              className={inputClass}
-            />
-            <p className="text-sm text-muted">
-              For your day-of reminder only.
-            </p>
-          </div>
+          <PhoneField
+            id="friendPhone"
+            name="friendPhone"
+            label="Phone number"
+            value={friendPhone}
+            onChange={setFriendPhone}
+            helperText="For your day-of reminder only. Enter a 10-digit U.S. number."
+            required
+          />
 
           <label className="flex items-start gap-3">
             <input

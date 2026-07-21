@@ -1,15 +1,85 @@
 /**
  * US-pilot phone normalization. One canonical form is stored and compared:
- * E.164-style `+1` + 10 digits (e.g. `+13105550199`).
+ * E.164-style `+1` + 10 digits (e.g. `+13109028228`).
+ *
+ * Display formatting uses the national 10-digit form: `(310) 902-8228`.
+ * Values are always handled as strings — never parsed as JavaScript numbers.
  */
 
 export type PhoneNormalizeResult =
   | { ok: true; phone: string }
   | { ok: false; error: string };
 
-/** Strip formatting characters; keep digits only (and a leading + if present). */
+export const PHONE_VALIDATION_ERROR =
+  "Enter a valid 10-digit U.S. phone number.";
+
+/** Strip every non-digit character. Always operate on strings. */
 export function digitsOnly(input: string): string {
-  return input.replace(/\D/g, "");
+  return String(input).replace(/\D/g, "");
+}
+
+/**
+ * Digits used for the live U.S. national display (max 10).
+ * If the user typed/pasted 11 digits starting with 1, drop the leading 1.
+ */
+export function toNationalDigits(input: string): string {
+  let digits = digitsOnly(input);
+  if (digits.length >= 11 && digits.startsWith("1")) {
+    digits = digits.slice(1);
+  }
+  return digits.slice(0, 10);
+}
+
+/**
+ * Format national digits as `(310) 902-8228` while the user types.
+ * Partial values format progressively: `(310`, `(310) 902`, etc.
+ */
+export function formatUsPhoneDisplay(input: string): string {
+  const d = toNationalDigits(input);
+  if (d.length === 0) return "";
+  if (d.length < 3) return `(${d}`;
+  if (d.length === 3) return `(${d})`;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+/**
+ * Map a caret position in the raw input to a caret position in the formatted
+ * display, preserving the number of digits to the left of the caret.
+ */
+export function caretAfterFormat(
+  previousValue: string,
+  previousCaret: number,
+  nextFormatted: string,
+): number {
+  const digitsBefore = digitsOnly(previousValue.slice(0, previousCaret)).length;
+  // Account for a leading country-code 1 that display formatting strips.
+  let nationalBefore = digitsBefore;
+  const allDigits = digitsOnly(previousValue);
+  if (allDigits.startsWith("1") && allDigits.length >= 11) {
+    // Digits before caret that fall within the stripped leading 1.
+    const leadingOnes = previousValue
+      .slice(0, previousCaret)
+      .replace(/\D/g, "")
+      .startsWith("1")
+      ? 1
+      : 0;
+    if (leadingOnes && digitsBefore > 0) {
+      nationalBefore = Math.max(0, digitsBefore - 1);
+    }
+  }
+  nationalBefore = Math.min(nationalBefore, 10);
+
+  if (nationalBefore === 0) return 0;
+
+  let seen = 0;
+  for (let i = 0; i < nextFormatted.length; i++) {
+    if (/\d/.test(nextFormatted[i]!)) {
+      seen += 1;
+      if (seen === nationalBefore) return i + 1;
+    }
+  }
+  return nextFormatted.length;
 }
 
 /**
@@ -17,14 +87,14 @@ export function digitsOnly(input: string): string {
  * Accepts 10-digit local numbers and 11-digit numbers with a leading 1 / +1.
  */
 export function normalizeUsPhone(input: string): PhoneNormalizeResult {
-  const trimmed = input.trim();
+  const trimmed = String(input ?? "").trim();
   if (!trimmed) {
-    return { ok: false, error: "Enter a valid phone number." };
+    return { ok: false, error: PHONE_VALIDATION_ERROR };
   }
 
-  // Reject obvious non-phone characters early (letters, etc.).
-  if (/[^\d+\-()\s.]/.test(trimmed)) {
-    return { ok: false, error: "Enter a valid phone number." };
+  // Letters mean this isn't a phone number. Other punctuation is stripped.
+  if (/[a-zA-Z]/.test(trimmed)) {
+    return { ok: false, error: PHONE_VALIDATION_ERROR };
   }
 
   const digits = digitsOnly(trimmed);
@@ -37,17 +107,7 @@ export function normalizeUsPhone(input: string): PhoneNormalizeResult {
     return { ok: true, phone: `+${digits}` };
   }
 
-  if (digits.length < 10) {
-    return {
-      ok: false,
-      error: "Enter a valid 10-digit US phone number.",
-    };
-  }
-
-  return {
-    ok: false,
-    error: "That phone number looks too long.",
-  };
+  return { ok: false, error: PHONE_VALIDATION_ERROR };
 }
 
 /** The 10 national digits for a canonical `+1…` phone. */

@@ -84,7 +84,7 @@ export function SiteHeader({
             </>
           ) : null}
           <Link href="/create" className={primaryButton}>
-            Make the plan
+            Start free trial
           </Link>
         </nav>
       </div>
@@ -97,10 +97,17 @@ export function SiteFooter() {
     <footer className="mt-auto border-t border-border">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <p>Dremmt Lock-In · Pilot</p>
-        <nav className="flex flex-wrap items-center gap-5">
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Link href="/manage-membership" className="hover:underline">
             Manage or cancel membership
           </Link>
+          <a
+            href="mailto:dremmtservice@gmail.com?subject=Dremmt%20support&body=Hi%20Dremmt%2C%0A%0AI%20need%20help%20with%3A%20"
+            className="hover:underline"
+            aria-label="Email Dremmt support"
+          >
+            Help
+          </a>
           <Link href="/privacy" className="hover:underline">
             Privacy
           </Link>
