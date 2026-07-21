@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SiteHeader, SiteFooter, primaryButton, eyebrowClass } from "@/components/ui";
 import { ShareActions } from "@/components/ShareActions";
 import { getMemberById, getRunByToken } from "@/lib/data";
-import { siteUrl } from "@/lib/env";
+import { buildInviteShareUrl, resolveServerSiteUrl } from "@/lib/env";
 import { friendShareMessage } from "@/lib/messages";
 import { canShowCheckoutSuccess } from "@/lib/membership-identity";
 import { getInitiatorShareStatus } from "@/lib/invite-ui";
@@ -26,6 +26,19 @@ export default async function SuccessPage({
       memberStatus: member?.subscription_status,
     });
 
+  // Absolute URL only for the copy/share field. In-app Links stay relative
+  // (/create, /manage-membership) and do not require a public origin.
+  let inviteUrl = "";
+  if (eligible && run) {
+    try {
+      const origin = await resolveServerSiteUrl();
+      inviteUrl = buildInviteShareUrl(origin, run.invite_token);
+    } catch {
+      // Still render the success UI; relative path is same-origin in the browser.
+      inviteUrl = `/invite/${run.invite_token}`;
+    }
+  }
+
   return (
     <>
       <SiteHeader />
@@ -47,7 +60,7 @@ export default async function SuccessPage({
             </section>
           ) : (
             <ShareView
-              inviteUrl={`${siteUrl()}/invite/${run.invite_token}`}
+              inviteUrl={inviteUrl}
               message={friendShareMessage(run)}
               status={getInitiatorShareStatus(run)}
               proposedWindows={

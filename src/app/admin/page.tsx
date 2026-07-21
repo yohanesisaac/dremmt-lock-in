@@ -4,7 +4,7 @@ import { AdminRunCard } from "@/components/admin/AdminRunCard";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { logoutAdmin } from "@/app/admin/actions";
 import { listRuns, listMembersByIds } from "@/lib/data";
-import { siteUrl, dremmtPhone } from "@/lib/env";
+import { buildInviteShareUrl, dremmtPhone, resolveServerSiteUrl } from "@/lib/env";
 import type { RunRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,14 @@ function count(runs: RunRow[], predicate: (run: RunRow) => boolean): number {
 
 export default async function AdminPage() {
   const authed = await isAdminAuthenticated();
+  let publicOrigin: string | null = null;
+  if (authed) {
+    try {
+      publicOrigin = await resolveServerSiteUrl();
+    } catch {
+      publicOrigin = null;
+    }
+  }
 
   if (!authed) {
     return (
@@ -99,7 +107,11 @@ export default async function AdminPage() {
                   key={run.id}
                   run={run}
                   member={run.member_id ? members.get(run.member_id) ?? null : null}
-                  inviteUrl={`${siteUrl()}/invite/${run.invite_token}`}
+                  inviteUrl={
+                    publicOrigin
+                      ? buildInviteShareUrl(publicOrigin, run.invite_token)
+                      : `/invite/${run.invite_token}`
+                  }
                 />
               ))
             )}

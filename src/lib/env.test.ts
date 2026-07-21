@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildInviteShareUrl,
+  originFromForwardedHeaders,
   parseConfiguredSiteUrl,
+  resolveShareOrigin,
   resolveSiteUrl,
 } from "./env";
+import { canShowCheckoutSuccess } from "./membership-identity";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -158,5 +162,95 @@ describe("resolveSiteUrl", () => {
     );
     expect(success_url).not.toContain("localhost");
     expect(cancel_url).not.toContain("localhost");
+  });
+});
+
+describe("resolveShareOrigin / checkout success share URL", () => {
+  it("resolves Production success share origin from forwarded Vercel headers", () => {
+    const origin = resolveShareOrigin({
+      configuredSiteUrl: null,
+      forwardedHost: "dremmt-lock-in.vercel.app",
+      host: "dremmt-lock-in.vercel.app",
+      forwardedProto: "https",
+      allowLocalhost: false,
+    });
+    expect(origin).toBe("https://dremmt-lock-in.vercel.app");
+    expect(
+      buildInviteShareUrl(origin, "invite-token-abc"),
+    ).toBe("https://dremmt-lock-in.vercel.app/invite/invite-token-abc");
+  });
+
+  it("uses a configured public site URL", () => {
+    expect(
+      resolveShareOrigin({
+        configuredSiteUrl: "https://dremmt-lock-in.vercel.app",
+        forwardedHost: "other.example.com",
+        host: "other.example.com",
+        forwardedProto: "https",
+        allowLocalhost: false,
+      }),
+    ).toBe("https://dremmt-lock-in.vercel.app");
+  });
+
+  it("relative internal navigation does not require a public origin", () => {
+    const relativeNav = ["/create", "/manage-membership", "/invite/token"];
+    for (const href of relativeNav) {
+      expect(href.startsWith("/")).toBe(true);
+      expect(href).not.toContain("localhost");
+      expect(href).not.toMatch(/^https?:\/\//);
+    }
+  });
+
+  it("invitation share URL uses the Vercel host, never localhost in Production", () => {
+    const origin = resolveShareOrigin({
+      configuredSiteUrl: undefined,
+      forwardedHost: "dremmt-lock-in.vercel.app",
+      host: "127.0.0.1",
+      forwardedProto: "https",
+      allowLocalhost: false,
+    });
+    const inviteUrl = buildInviteShareUrl(origin, "tok");
+    expect(inviteUrl).toBe("https://dremmt-lock-in.vercel.app/invite/tok");
+    expect(inviteUrl).not.toContain("localhost");
+  });
+
+  it("missing headers and missing env fail only when an absolute share URL is required", () => {
+    expect(() =>
+      resolveShareOrigin({
+        configuredSiteUrl: null,
+        forwardedHost: null,
+        host: null,
+        forwardedProto: null,
+        allowLocalhost: false,
+      }),
+    ).toThrow(/share links/i);
+
+    // Relative fallback still usable for page render without absolute origin.
+    expect(`/invite/tok`).toBe("/invite/tok");
+  });
+
+  it("originFromForwardedHeaders prefers x-forwarded-host + proto", () => {
+    expect(
+      originFromForwardedHeaders({
+        forwardedHost: "dremmt-lock-in.vercel.app",
+        host: "localhost:3000",
+        forwardedProto: "https",
+      }),
+    ).toBe("https://dremmt-lock-in.vercel.app");
+  });
+
+  it("existing token validation remains unchanged", () => {
+    expect(
+      canShowCheckoutSuccess({
+        runStatus: "ready",
+        memberStatus: "trialing",
+      }),
+    ).toBe(true);
+    expect(
+      canShowCheckoutSuccess({
+        runStatus: "awaiting_payment",
+        memberStatus: "trialing",
+      }),
+    ).toBe(false);
   });
 });

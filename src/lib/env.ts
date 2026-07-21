@@ -5,6 +5,7 @@
  * server (route handlers, server actions, server components).
  */
 
+import { headers } from "next/headers";
 import type { NextRequest } from "next/server";
 
 function required(name: string): string {
@@ -130,8 +131,113 @@ export function resolveSiteUrl(request?: RequestWithOrigin): string {
 }
 
 /**
- * Public site URL for server-rendered links. Prefer {@link resolveSiteUrl}
- * with a request in API routes that build Stripe redirect URLs.
+ * Build an absolute invitation URL for copy/share fields.
+ * Prefer relative paths (`/invite/[token]`) for in-app Link navigation.
+ */
+export function buildInviteShareUrl(origin: string, inviteToken: string): string {
+  return `${origin.replace(/\/$/, "")}/invite/${inviteToken}`;
+}
+
+/**
+ * Derive a public origin from forwarded Host headers (Vercel / proxies).
+ * Pure helper — safe to unit test without Next.js.
+ */
+export function originFromForwardedHeaders(args: {
+  forwardedHost?: string | null;
+  host?: string | null;
+  forwardedProto?: string | null;
+}): string | null {
+  const hostRaw = (args.forwardedHost || args.host || "").trim();
+  if (!hostRaw) return null;
+
+  // x-forwarded-host may be a comma-separated list; use the first.
+  const host = hostRaw.split(",")[0]!.trim();
+  if (!host || host.includes("/") || host.includes(" ")) return null;
+
+  const protoRaw = (args.forwardedProto || "").trim().split(",")[0]!.trim();
+  let proto = protoRaw.toLowerCase();
+  if (proto !== "http" && proto !== "https") {
+    proto = isLocalhostOrigin(`http://${host}`) ? "http" : "https";
+  }
+
+  try {
+    const url = new URL(`${proto}://${host}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pure Server-Component origin resolution (config + forwarded headers).
+ * Used by {@link resolveServerSiteUrl} and unit tests.
+ */
+export function resolveShareOrigin(args: {
+  configuredSiteUrl?: string | null;
+  forwardedHost?: string | null;
+  host?: string | null;
+  forwardedProto?: string | null;
+  allowLocalhost: boolean;
+}): string {
+  const configured = parseConfiguredSiteUrl(args.configuredSiteUrl);
+  if (configured) {
+    if (isLocalhostOrigin(configured) && !args.allowLocalhost) {
+      // Ignore a misconfigured localhost value outside local development.
+    } else {
+      return configured.replace(/\/$/, "");
+    }
+  }
+
+  const fromHeaders = originFromForwardedHeaders({
+    forwardedHost: args.forwardedHost,
+    host: args.host,
+    forwardedProto: args.forwardedProto,
+  });
+
+  if (fromHeaders) {
+    if (isLocalhostOrigin(fromHeaders)) {
+      if (args.allowLocalhost) return fromHeaders;
+    } else {
+      return fromHeaders.replace(/\/$/, "");
+    }
+  }
+
+  if (args.allowLocalhost) {
+    return "http://localhost:3000";
+  }
+
+  throw new Error(
+    "Could not resolve a public site URL for share links. Set NEXT_PUBLIC_SITE_URL to an absolute https origin (e.g. https://dremmt-lock-in.vercel.app), or ensure Host / x-forwarded-host headers are present.",
+  );
+}
+
+/**
+ * Resolve the public site origin for Server Components (no NextRequest).
+ *
+ * Order:
+ * 1. Valid NEXT_PUBLIC_SITE_URL
+ * 2. x-forwarded-proto + x-forwarded-host
+ * 3. https/http + host header
+ * 4. localhost only in local development
+ *
+ * Do not call {@link resolveSiteUrl} without a request from Server Components.
+ */
+export async function resolveServerSiteUrl(): Promise<string> {
+  const h = await headers();
+  return resolveShareOrigin({
+    configuredSiteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+    forwardedHost: h.get("x-forwarded-host"),
+    host: h.get("host"),
+    forwardedProto: h.get("x-forwarded-proto"),
+    allowLocalhost: isLocalDevelopment(),
+  });
+}
+
+/**
+ * @deprecated Prefer {@link resolveSiteUrl}(request) in route handlers or
+ * {@link resolveServerSiteUrl}() in Server Components. This requestless form
+ * throws in Production when NEXT_PUBLIC_SITE_URL is missing/invalid.
  */
 export function siteUrl(): string {
   return resolveSiteUrl();
