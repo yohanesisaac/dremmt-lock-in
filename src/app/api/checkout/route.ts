@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createRunSchema, firstZodErrorMessage } from "@/lib/schemas";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
-import { serverEnv, siteUrl } from "@/lib/env";
+import { serverEnv, resolveSiteUrl } from "@/lib/env";
 import { generateToken } from "@/lib/tokens";
 import { findMemberByNormalizedPhone } from "@/lib/data";
 import {
@@ -32,7 +32,7 @@ function validationError(error: string, fieldErrors?: unknown) {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -201,6 +201,22 @@ export async function POST(request: Request) {
   // Do not silently grant a second free trial to returning / prior customers.
   const offerTrial = shouldOfferCheckoutTrial(member);
 
+  let origin: string;
+  try {
+    origin = resolveSiteUrl(request);
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Could not resolve a public site URL for Checkout redirects.";
+    console.error("[checkout] origin resolution failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  if (isDev) {
+    console.log(`[checkout] resolved origin: ${origin}`);
+  }
+
   try {
     if (existingCustomerId) {
       await stripe.customers.update(existingCustomerId, {
@@ -228,8 +244,8 @@ export async function POST(request: Request) {
           : {}),
         metadata: { run_id: run.id, member_id: member.id },
       },
-      success_url: `${siteUrl()}/api/stripe/verify?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl()}/create?canceled=1`,
+      success_url: `${origin}/api/stripe/verify?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/create?canceled=1`,
     });
 
     if (!session.url) {
