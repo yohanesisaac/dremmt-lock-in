@@ -78,7 +78,7 @@ export default function LandingPage() {
 
             <div className="lg:pl-4">
               <p className={`${eyebrowClass} mb-3`}>
-                This is all your friend has to do
+                This is what your friend will see
               </p>
               <ExampleInvitationCard />
             </div>

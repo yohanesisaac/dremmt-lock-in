@@ -14,14 +14,14 @@ function StatusShell({
 }) {
   return (
     <>
-      <header className="border-b border-border bg-cream">
-        <div className="mx-auto w-full max-w-2xl px-5 py-4 sm:px-8">
+      <header className="border-b border-border bg-cream/90 backdrop-blur">
+        <div className="mx-auto w-full max-w-md px-5 py-4 sm:px-8">
           <Logo />
         </div>
       </header>
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-2xl px-5 py-12 sm:px-8">
-          <section className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
+        <div className="mx-auto w-full max-w-md px-5 py-12 sm:px-8 sm:py-16">
+          <section className="overflow-hidden rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
             <h1 className="text-2xl text-navy">{heading}</h1>
             {children}
           </section>
@@ -81,18 +81,19 @@ export default async function InvitePage({
 
   return (
     <>
-      <header className="border-b border-border bg-cream">
-        <div className="mx-auto w-full max-w-2xl px-5 py-4 sm:px-8">
+      <header className="border-b border-border bg-cream/90 backdrop-blur">
+        <div className="mx-auto w-full max-w-md px-5 py-4 sm:px-8">
           <Logo />
         </div>
       </header>
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-2xl space-y-8 px-5 py-10 sm:px-8">
-          <h1 className="text-3xl text-navy sm:text-4xl">
-            {run.initiator_name} wants to go to {run.restaurant_name} with you.
-          </h1>
-
-          <InviteForm token={token} options={options} />
+        <div className="mx-auto w-full max-w-md px-5 py-12 sm:px-8 sm:py-16">
+          <InviteForm
+            token={token}
+            options={options}
+            initiatorName={run.initiator_name}
+            restaurantName={run.restaurant_name}
+          />
         </div>
       </main>
       <SiteFooter />

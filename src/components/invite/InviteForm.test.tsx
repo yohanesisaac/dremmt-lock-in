@@ -13,16 +13,38 @@ const options = [
   { value: 2 as const, label: "Thursday · 5–7 PM" },
 ];
 
+function renderInvite() {
+  return render(
+    <InviteForm
+      token="token-abc12345"
+      options={options}
+      initiatorName="Yohannes"
+      restaurantName="Esme"
+    />,
+  );
+}
+
 describe("InviteForm", () => {
+  it("renders the invitation card heading", () => {
+    renderInvite();
+    expect(
+      screen.getByRole("heading", {
+        name: "Yohannes wants to go to Esme with you.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Dremmt run")).toBeInTheDocument();
+    expect(screen.getByText("Pick what works:")).toBeInTheDocument();
+  });
+
   it("keeps I'm in disabled until a time is selected", () => {
-    render(<InviteForm token="token-abc12345" options={options} />);
+    renderInvite();
     const button = screen.getByRole("button", { name: "I'm in" });
     expect(button).toBeDisabled();
   });
 
   it("enables I'm in after a time is selected", async () => {
     const user = userEvent.setup();
-    render(<InviteForm token="token-abc12345" options={options} />);
+    renderInvite();
 
     await user.click(
       screen.getByRole("radio", { name: "Tuesday · 12–2 PM" }),
@@ -32,7 +54,7 @@ describe("InviteForm", () => {
 
   it("selects a time when the whole row is clicked", async () => {
     const user = userEvent.setup();
-    render(<InviteForm token="token-abc12345" options={options} />);
+    renderInvite();
 
     const row = screen.getByRole("radio", { name: "Thursday · 5–7 PM" });
     await user.click(row);
@@ -40,15 +62,14 @@ describe("InviteForm", () => {
     expect(screen.getByRole("button", { name: "I'm in" })).toBeEnabled();
   });
 
-  it("uses plan wording on the consent checkbox", async () => {
-    const user = userEvent.setup();
-    render(<InviteForm token="token-abc12345" options={options} />);
-    await user.click(
-      screen.getByRole("radio", { name: "Tuesday · 12–2 PM" }),
-    );
-    await user.click(screen.getByRole("button", { name: "I'm in" }));
+  it("keeps phone and consent inside the card before I'm in", () => {
+    renderInvite();
+    expect(screen.getByLabelText("Phone number")).toBeInTheDocument();
     expect(
       screen.getByText("I agree to receive texts from Dremmt about this plan."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/at least \$6 toward the outing is locked/i),
     ).toBeInTheDocument();
   });
 });
