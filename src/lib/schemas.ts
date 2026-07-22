@@ -75,7 +75,7 @@ export const acceptRunSchema = z.object({
   selectedOption: z.union([z.literal(1), z.literal(2)]),
   friendPhone: phoneString,
   friendSmsConsent: z.literal(true, {
-    error: "Please agree to receive texts about this Dremmt run.",
+    error: "Please agree to receive texts about this plan.",
   }),
 });
 

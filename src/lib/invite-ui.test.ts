@@ -3,6 +3,7 @@ import {
   buildSmsHref,
   friendInSmsMessage,
   getInitiatorShareStatus,
+  mapAcceptFieldErrors,
   shouldRedirectInviteToLocked,
 } from "./invite-ui";
 import type { RunRow } from "./types";
@@ -34,6 +35,7 @@ function run(partial: Partial<RunRow> & Pick<RunRow, "status">): RunRow {
     friend_phone: null,
     friend_sms_consent: false,
     reward_status: "none",
+    is_trial_reward: false,
     feedback: null,
     created_at: "2026-07-01T00:00:00.000Z",
     updated_at: "2026-07-01T00:00:00.000Z",
@@ -99,5 +101,29 @@ describe("duplicate acceptance routing", () => {
     expect(shouldRedirectInviteToLocked("accepted")).toBe(true);
     expect(shouldRedirectInviteToLocked("completed")).toBe(true);
     expect(shouldRedirectInviteToLocked("ready")).toBe(false);
+  });
+});
+
+describe("mapAcceptFieldErrors", () => {
+  it("maps consent-only failure without blaming time or phone", () => {
+    expect(
+      mapAcceptFieldErrors([{ path: ["friendSmsConsent"] }]),
+    ).toEqual({
+      friendSmsConsent: "Please agree to receive texts about this plan.",
+    });
+  });
+
+  it("maps each missing field to its own message", () => {
+    expect(
+      mapAcceptFieldErrors([
+        { path: ["selectedOption"] },
+        { path: ["friendPhone"] },
+        { path: ["friendSmsConsent"] },
+      ]),
+    ).toEqual({
+      selectedOption: "Pick a time.",
+      friendPhone: "Enter a valid 10-digit U.S. phone number.",
+      friendSmsConsent: "Please agree to receive texts about this plan.",
+    });
   });
 });

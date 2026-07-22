@@ -1,6 +1,34 @@
 import type { RunRow, RunStatus, TimeWindow } from "./types";
 import { formatTimeWindow } from "./time-windows";
 
+export type AcceptFieldErrors = {
+  selectedOption?: string;
+  friendPhone?: string;
+  friendSmsConsent?: string;
+};
+
+/** Map Zod accept-form failures to the exact invite-form field messages. */
+export function mapAcceptFieldErrors(
+  issues: readonly { path: PropertyKey[] }[],
+): AcceptFieldErrors {
+  const fieldErrors: AcceptFieldErrors = {};
+  for (const issue of issues) {
+    const path = issue.path[0];
+    if (path === "selectedOption" && !fieldErrors.selectedOption) {
+      fieldErrors.selectedOption = "Pick a time.";
+    }
+    if (path === "friendPhone" && !fieldErrors.friendPhone) {
+      fieldErrors.friendPhone =
+        "Enter a valid 10-digit U.S. phone number.";
+    }
+    if (path === "friendSmsConsent" && !fieldErrors.friendSmsConsent) {
+      fieldErrors.friendSmsConsent =
+        "Please agree to receive texts about this plan.";
+    }
+  }
+  return fieldErrors;
+}
+
 /** Prefill for the friend → initiator SMS after locking in. */
 export function friendInSmsMessage(
   restaurantName: string,

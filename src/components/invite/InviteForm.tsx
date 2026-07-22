@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   primaryButton,
@@ -9,6 +9,7 @@ import {
   errorTextClass,
 } from "@/components/ui";
 import { PhoneField } from "@/components/PhoneField";
+import { normalizeUsPhone } from "@/lib/phone";
 import { acceptRun, declineRun, type AcceptState } from "@/app/invite/[token]/actions";
 
 interface Option {
@@ -23,10 +24,25 @@ export function InviteForm({
   token: string;
   options: Option[];
 }) {
+  const timeErrorId = useId();
+  const consentErrorId = useId();
+
   const [selected, setSelected] = useState<1 | 2 | null>(null);
   const [phase, setPhase] = useState<"choosing" | "confirming">("choosing");
   const [friendPhone, setFriendPhone] = useState("");
+  const [consent, setConsent] = useState(false);
   const [state, formAction] = useActionState<AcceptState, FormData>(acceptRun, {});
+
+  const serverErrors = state.fieldErrors ?? {};
+  // Clear each field error as soon as that field becomes valid.
+  const timeError =
+    selected != null ? undefined : serverErrors.selectedOption;
+  const phoneError = normalizeUsPhone(friendPhone).ok
+    ? undefined
+    : serverErrors.friendPhone;
+  const consentError = consent
+    ? undefined
+    : serverErrors.friendSmsConsent;
 
   return (
     <div className="space-y-6">
@@ -36,6 +52,8 @@ export function InviteForm({
           className="mt-4 space-y-3"
           role="radiogroup"
           aria-label="Proposed times"
+          aria-invalid={timeError ? true : undefined}
+          aria-describedby={timeError ? timeErrorId : undefined}
         >
           {options.map((option) => {
             const isActive = selected === option.value;
@@ -65,6 +83,11 @@ export function InviteForm({
             );
           })}
         </div>
+        {timeError ? (
+          <p id={timeErrorId} className={`mt-2 ${errorTextClass}`} role="alert">
+            {timeError}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1">
@@ -104,20 +127,36 @@ export function InviteForm({
             label="Phone number"
             value={friendPhone}
             onChange={setFriendPhone}
+            error={phoneError}
             helperText="For your day-of reminder only. Enter a 10-digit U.S. number."
             required
           />
 
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              name="friendSmsConsent"
-              className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-orange)]"
-            />
-            <span className="text-sm text-navy">
-              I agree to receive texts from Dremmt about this run.
-            </span>
-          </label>
+          <div className="space-y-1.5">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="friendSmsConsent"
+                className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-orange)]"
+                checked={consent}
+                aria-invalid={consentError ? true : undefined}
+                aria-describedby={consentError ? consentErrorId : undefined}
+                onChange={(e) => setConsent(e.target.checked)}
+              />
+              <span className="text-sm text-navy">
+                I agree to receive texts from Dremmt about this plan.
+              </span>
+            </label>
+            {consentError ? (
+              <p
+                id={consentErrorId}
+                className={errorTextClass}
+                role="alert"
+              >
+                {consentError}
+              </p>
+            ) : null}
+          </div>
 
           {state.error ? <p className={errorTextClass}>{state.error}</p> : null}
 

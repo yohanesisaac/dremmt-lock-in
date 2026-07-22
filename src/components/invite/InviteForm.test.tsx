@@ -39,4 +39,16 @@ describe("InviteForm", () => {
     expect(row).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "I'm in" })).toBeEnabled();
   });
+
+  it("uses plan wording on the consent checkbox", async () => {
+    const user = userEvent.setup();
+    render(<InviteForm token="token-abc12345" options={options} />);
+    await user.click(
+      screen.getByRole("radio", { name: "Tuesday · 12–2 PM" }),
+    );
+    await user.click(screen.getByRole("button", { name: "I'm in" }));
+    expect(
+      screen.getByText("I agree to receive texts from Dremmt about this plan."),
+    ).toBeInTheDocument();
+  });
 });

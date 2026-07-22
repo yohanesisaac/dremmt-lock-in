@@ -31,6 +31,14 @@ export function PhoneField({
   disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const helperId = `${id}-helper`;
+  const errorId = `${id}-error`;
+  const describedBy = [
+    helperText ? helperId : null,
+    error ? errorId : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     const el = e.target;
@@ -66,9 +74,19 @@ export function PhoneField({
         placeholder={placeholder}
         value={value}
         onChange={handleChange}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy || undefined}
       />
-      {helperText ? <p className={hintClass}>{helperText}</p> : null}
-      {error ? <p className={errorTextClass}>{error}</p> : null}
+      {helperText ? (
+        <p id={helperId} className={hintClass}>
+          {helperText}
+        </p>
+      ) : null}
+      {error ? (
+        <p id={errorId} className={errorTextClass} role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

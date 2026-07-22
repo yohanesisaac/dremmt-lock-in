@@ -6,11 +6,15 @@ import { acceptRunSchema, declineRunSchema } from "@/lib/schemas";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getRunByToken, getMemberById } from "@/lib/data";
 import { reserveReward, isTrialing } from "@/lib/reward-period";
+import {
+  mapAcceptFieldErrors,
+  type AcceptFieldErrors,
+} from "@/lib/invite-ui";
 import type { TimeWindow } from "@/lib/types";
 
 export interface AcceptState {
   error?: string;
-  fieldErrors?: Record<string, string[] | undefined>;
+  fieldErrors?: AcceptFieldErrors;
 }
 
 export async function acceptRun(
@@ -26,8 +30,7 @@ export async function acceptRun(
 
   if (!parsed.success) {
     return {
-      error: "Please pick a time and add your phone number.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
+      fieldErrors: mapAcceptFieldErrors(parsed.error.issues),
     };
   }
 
