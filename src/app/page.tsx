@@ -45,8 +45,8 @@ export default function LandingPage() {
             <div>
               <p className={eyebrowClass}>For the plan that never leaves the gc</p>
               <h1 className="mt-3 text-4xl leading-tight text-navy sm:text-5xl">
-                Pick the place. Pick the day. We&apos;ll give you a reason to
-                go.
+                Pick the restaurant. Pick the day. We&apos;ll give you a reason
+                to go.
               </h1>
               <p className="mt-5 max-w-xl text-lg text-navy">
                 Send it to the friend you&apos;ve been meaning to see. Once
