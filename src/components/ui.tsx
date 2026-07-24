@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { isBehaviorTestMode } from "@/lib/behavior-test";
 
 /* Shared class strings so buttons, cards, and fields stay consistent. */
 
@@ -60,6 +61,7 @@ export function SiteHeader({
 }: {
   showNav?: boolean;
 }) {
+  const behaviorTest = isBehaviorTestMode();
   return (
     <header className="border-b border-border bg-cream/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
@@ -75,16 +77,19 @@ export function SiteHeader({
               >
                 How it works
               </a>
-              <a
-                href="#why-10"
-                className="hidden rounded-full px-3 py-2 text-base font-medium text-navy hover:underline sm:inline-flex"
-              >
-                Why $10?
-              </a>
+              {/* Behavior-test mode has no pricing, so hide the "Why $10?" link. */}
+              {behaviorTest ? null : (
+                <a
+                  href="#why-10"
+                  className="hidden rounded-full px-3 py-2 text-base font-medium text-navy hover:underline sm:inline-flex"
+                >
+                  Why $10?
+                </a>
+              )}
             </>
           ) : null}
           <Link href="/create" className={primaryButton}>
-            Start free trial
+            {behaviorTest ? "Make your first plan" : "Start free trial"}
           </Link>
         </nav>
       </div>

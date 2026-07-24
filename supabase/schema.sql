@@ -42,6 +42,9 @@ create table if not exists public.members (
   -- Stripe subscription.cancel_at (when access is scheduled to end).
   access_ends_at           timestamptz null,
   member_access_token      text not null unique,
+  -- True for members created via temporary behavior-test mode (no Stripe).
+  -- Real paid members are always false. See migration 0006.
+  is_behavior_test         boolean not null default false,
   -- Deprecated / unused by the app: the trial/monthly reward allowance (see
   -- reserve_reward below) is computed directly from `runs`, not from
   -- a per-member counter. Kept only for backward compatibility.
@@ -58,6 +61,9 @@ create index if not exists members_stripe_subscription_idx
 -- Non-unique: duplicate phones already exist in some pilot databases.
 create index if not exists members_phone_idx
   on public.members (phone);
+create index if not exists members_behavior_test_idx
+  on public.members (is_behavior_test)
+  where is_behavior_test = true;
 
 drop trigger if exists members_set_updated_at on public.members;
 create trigger members_set_updated_at
@@ -95,6 +101,9 @@ create table if not exists public.runs (
   -- True when the reward was reserved during a Stripe trial. Excluded from
   -- paid monthly allowance counts so trial usage never reduces the later 3.
   is_trial_reward        boolean not null default false,
+  -- True for runs created via temporary behavior-test mode (no Stripe).
+  -- Real runs are always false. See migration 0006.
+  is_behavior_test       boolean not null default false,
   feedback               text,
   created_at             timestamptz not null default now(),
   updated_at             timestamptz not null default now(),
@@ -106,6 +115,9 @@ create table if not exists public.runs (
 create index if not exists runs_member_idx on public.runs (member_id);
 create index if not exists runs_status_idx on public.runs (status);
 create index if not exists runs_created_idx on public.runs (created_at desc);
+create index if not exists runs_behavior_test_idx
+  on public.runs (is_behavior_test)
+  where is_behavior_test = true;
 
 -- Covering index for the monthly-allowance count query used by
 -- reserve_monthly_reward below (member_id + reward_status + accepted_at).

@@ -1,9 +1,52 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SiteFooter, Logo } from "@/components/ui";
 import { InviteForm } from "@/components/invite/InviteForm";
 import { getRunByToken } from "@/lib/data";
 import { shouldRedirectInviteToLocked } from "@/lib/invite-ui";
 import { formatTimeWindowShort } from "@/lib/time-windows";
+import { buildInvitePreview } from "@/lib/invite-preview";
+import { buildInviteShareUrl, resolveServerSiteUrl } from "@/lib/env";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const run = await getRunByToken(token);
+  const preview = buildInvitePreview(run);
+
+  // metadataBase lets the file-based opengraph-image/twitter-image resolve to
+  // absolute URLs. Falls back gracefully when no public origin is configured.
+  let metadataBase: URL | undefined;
+  let inviteUrl: string | undefined;
+  try {
+    const origin = await resolveServerSiteUrl();
+    metadataBase = new URL(origin);
+    inviteUrl = buildInviteShareUrl(origin, token);
+  } catch {
+    metadataBase = undefined;
+  }
+
+  return {
+    ...(metadataBase ? { metadataBase } : {}),
+    title: preview.metaTitle,
+    description: preview.metaDescription,
+    openGraph: {
+      type: "website",
+      siteName: "Dremmt",
+      title: preview.metaTitle,
+      description: preview.metaDescription,
+      ...(inviteUrl ? { url: inviteUrl } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: preview.metaTitle,
+      description: preview.metaDescription,
+    },
+  };
+}
 
 function StatusShell({
   heading,

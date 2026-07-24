@@ -81,12 +81,18 @@ export function isValidAccessStatus(status: SubscriptionStatus): boolean {
  * Success-page eligibility: a share token alone is not enough. The run must be
  * past payment and its member must currently have valid access — unless the
  * request was just verified through Stripe (handled by the verify route).
+ *
+ * Behavior-test runs are exempt from the membership check: they intentionally
+ * never mark the member active/trialing, but a `ready` behavior-test run should
+ * still reach the share screen. Only trusted when behavior-test mode is on.
  */
 export function canShowCheckoutSuccess(args: {
   runStatus: string | null | undefined;
   memberStatus: SubscriptionStatus | null | undefined;
+  behaviorTest?: boolean;
 }): boolean {
   if (!args.runStatus || args.runStatus === "awaiting_payment") return false;
+  if (args.behaviorTest) return true;
   if (!args.memberStatus) return false;
   return isValidAccessStatus(args.memberStatus);
 }

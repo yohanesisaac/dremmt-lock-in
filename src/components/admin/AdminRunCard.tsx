@@ -69,9 +69,16 @@ export function AdminRunCard({
         <h3 className="text-xl text-navy">
           {run.initiator_name} → {run.friend_name}
         </h3>
-        <span className="rounded-full border border-border-strong px-3 py-1 text-sm font-medium text-navy">
-          {STATUS_LABEL[run.status]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {run.is_behavior_test ? (
+            <span className="rounded-full border border-orange bg-cream px-3 py-1 text-sm font-medium text-orange-deep">
+              Behavior test
+            </span>
+          ) : null}
+          <span className="rounded-full border border-border-strong px-3 py-1 text-sm font-medium text-navy">
+            {STATUS_LABEL[run.status]}
+          </span>
+        </div>
       </div>
 
       <dl className="mt-4">
@@ -113,6 +120,19 @@ export function AdminRunCard({
           }
         />
         <Row label="Reward status" value={run.reward_status} />
+        {run.is_behavior_test || member?.is_behavior_test ? (
+          <Row
+            label="Behavior test"
+            value={
+              [
+                run.is_behavior_test ? "run" : null,
+                member?.is_behavior_test ? "member" : null,
+              ]
+                .filter(Boolean)
+                .join(" + ") + " (no Stripe / not a paid member)"
+            }
+          />
+        ) : null}
         <Row
           label="Invitation URL"
           value={

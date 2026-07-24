@@ -15,7 +15,15 @@ import {
 } from "@/lib/reward-period";
 import { shouldOfferCheckoutTrial } from "@/lib/returning-member";
 import { rewardConfig } from "@/config/reward";
+import {
+  isBehaviorTestMode,
+  isMissingBehaviorTestColumnError,
+  BEHAVIOR_TEST_PLAN_LIMIT,
+  BEHAVIOR_TEST_CONSUMED_STATUSES,
+} from "@/lib/behavior-test";
 import type { MemberRow, TimeWindow } from "@/lib/types";
+
+type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -139,6 +147,21 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ shareToken: run.invite_token }, { status: 200 });
+  }
+
+  // --- Behavior-test mode: skip Stripe for one card-free plan. -------------
+  // Only reached when the phone has no active/trialing membership (Path A above
+  // still bypasses real paid members normally). Never contacts Stripe, never
+  // invents Stripe IDs, never marks the member active/trialing. Records are
+  // flagged is_behavior_test (best-effort until migration 0006 is applied).
+  if (isBehaviorTestMode()) {
+    return handleBehaviorTestCheckout({
+      supabase,
+      input,
+      canonicalPhone,
+      runBase,
+      existingMember: access.member,
+    });
   }
 
   // --- Path B: no valid membership → reuse phone-matched member or create one ---
@@ -269,6 +292,166 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+/**
+ * Behavior-test checkout: create (or reuse) a member and a ready-to-share run
+ * without any Stripe involvement, then hand back the share token so the client
+ * continues into the normal invite/accept flow. Enforces a single card-free
+ * plan per behavior-test member.
+ */
+async function handleBehaviorTestCheckout(args: {
+  supabase: SupabaseAdmin;
+  input: {
+    initiatorName: string;
+    initiatorEmail: string;
+    initiatorSmsConsent: boolean;
+  };
+  canonicalPhone: string;
+  runBase: Record<string, unknown>;
+  existingMember: MemberRow | null;
+}): Promise<NextResponse> {
+  const { supabase, input, canonicalPhone, runBase, existingMember } = args;
+
+  let member = existingMember;
+  if (member) {
+    // Reuse the phone-matched member; keep contact details fresh. We do NOT
+    // flip an existing (possibly real) member's is_behavior_test flag.
+    await syncMemberContact(member, {
+      firstName: input.initiatorName,
+      phone: canonicalPhone,
+      email: input.initiatorEmail,
+      smsConsent: input.initiatorSmsConsent,
+    });
+  } else {
+    member = await insertRowWithBehaviorTestFlag<MemberRow>(supabase, "members", {
+      first_name: input.initiatorName,
+      phone: canonicalPhone,
+      email: input.initiatorEmail,
+      sms_consent: input.initiatorSmsConsent,
+      subscription_status: "inactive",
+      member_access_token: generateToken(),
+    });
+    if (!member) {
+      return NextResponse.json(
+        { error: "We couldn't start your behavior-test plan. Please try again." },
+        { status: 500 },
+      );
+    }
+  }
+
+  const usedPlans = await countBehaviorTestPlans(supabase, member.id);
+  if (usedPlans >= BEHAVIOR_TEST_PLAN_LIMIT) {
+    return NextResponse.json(
+      {
+        allowanceReached: true,
+        behaviorTest: true,
+        allowanceLimit: BEHAVIOR_TEST_PLAN_LIMIT,
+      },
+      { status: 200 },
+    );
+  }
+
+  const run = await insertRowWithBehaviorTestFlag<{ invite_token: string }>(
+    supabase,
+    "runs",
+    {
+      ...runBase,
+      invite_token: generateToken(),
+      member_id: member.id,
+      status: "ready",
+      reward_status: "none",
+    },
+    "invite_token",
+  );
+
+  if (!run) {
+    return NextResponse.json(
+      { error: "Run could not be saved. Please try again." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json(
+    { shareToken: run.invite_token, behaviorTest: true },
+    { status: 200 },
+  );
+}
+
+/**
+ * Insert a row with `is_behavior_test = true`. If migration 0006 has not been
+ * applied yet, retry without the flag so the flow still works (the row simply
+ * won't be durably marked until the column exists).
+ */
+async function insertRowWithBehaviorTestFlag<T>(
+  supabase: SupabaseAdmin,
+  table: "members" | "runs",
+  baseRow: Record<string, unknown>,
+  select = "*",
+): Promise<T | null> {
+  let result = await supabase
+    .from(table)
+    .insert({ ...baseRow, is_behavior_test: true })
+    .select(select)
+    .single();
+
+  if (result.error && isMissingBehaviorTestColumnError(result.error)) {
+    console.warn(
+      `[checkout] '${table}.is_behavior_test' is missing — apply migration 0006 to durably flag behavior-test records. Inserting without the flag for now.`,
+    );
+    result = await supabase
+      .from(table)
+      .insert(baseRow)
+      .select(select)
+      .single();
+  }
+
+  if (result.error || !result.data) {
+    console.error(
+      `[checkout] behavior-test ${table} insert failed:`,
+      result.error?.message,
+    );
+    return null;
+  }
+
+  return result.data as T;
+}
+
+/** Count a behavior-test member's created plans (for the one-plan cap). */
+async function countBehaviorTestPlans(
+  supabase: SupabaseAdmin,
+  memberId: string,
+): Promise<number> {
+  const statuses = [...BEHAVIOR_TEST_CONSUMED_STATUSES];
+
+  // NB: no `head: true`. A HEAD request returns an empty error body, so the
+  // missing-column error can't be detected before migration 0006 is applied.
+  let result = await supabase
+    .from("runs")
+    .select("id", { count: "exact" })
+    .eq("member_id", memberId)
+    .in("status", statuses)
+    .eq("is_behavior_test", true);
+
+  if (result.error && isMissingBehaviorTestColumnError(result.error)) {
+    // Pre-migration fallback: this member was created in behavior-test mode,
+    // so any of their ready+ runs are behavior-test plans.
+    result = await supabase
+      .from("runs")
+      .select("id", { count: "exact" })
+      .eq("member_id", memberId)
+      .in("status", statuses);
+  }
+
+  if (result.error) {
+    console.error(
+      "[checkout] behavior-test plan count failed:",
+      result.error.message,
+    );
+    return 0;
+  }
+
+  return result.count ?? 0;
 }
 
 async function syncMemberContact(

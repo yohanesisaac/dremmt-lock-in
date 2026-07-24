@@ -46,6 +46,8 @@ export interface MemberRow {
   /** Stripe cancel_at — when access is scheduled to end. */
   access_ends_at: string | null;
   member_access_token: string;
+  /** True for members created via temporary behavior-test mode (no Stripe). */
+  is_behavior_test: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +74,8 @@ export interface RunRow {
   reward_status: RewardStatus;
   /** True when reserved during a Stripe trial; excluded from paid monthly counts. */
   is_trial_reward: boolean;
+  /** True for runs created via temporary behavior-test mode (no Stripe). */
+  is_behavior_test: boolean;
   feedback: string | null;
   created_at: string;
   updated_at: string;

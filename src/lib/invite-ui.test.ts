@@ -36,6 +36,7 @@ function run(partial: Partial<RunRow> & Pick<RunRow, "status">): RunRow {
     friend_sms_consent: false,
     reward_status: "none",
     is_trial_reward: false,
+    is_behavior_test: false,
     feedback: null,
     created_at: "2026-07-01T00:00:00.000Z",
     updated_at: "2026-07-01T00:00:00.000Z",

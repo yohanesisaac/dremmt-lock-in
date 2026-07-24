@@ -30,10 +30,12 @@ export function CreateFlow({
   canceled,
   returningContext = null,
   restartMode = false,
+  behaviorTest = false,
 }: {
   canceled: boolean;
   returningContext?: ReturningCreateContext | null;
   restartMode?: boolean;
+  behaviorTest?: boolean;
 }) {
   const router = useRouter();
 
@@ -43,6 +45,7 @@ export function CreateFlow({
   const [formError, setFormError] = useState<string | null>(null);
   const [resetDate, setResetDate] = useState<string | null>(null);
   const [reachedIsTrial, setReachedIsTrial] = useState(false);
+  const [reachedBehaviorTest, setReachedBehaviorTest] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [allowanceLimit, setAllowanceLimit] = useState(
     returningContext?.limit ?? rewardConfig.monthlyPlanLimit,
@@ -173,6 +176,7 @@ export function CreateFlow({
       if (data.allowanceReached) {
         setResetDate(data.resetDate ?? null);
         setReachedIsTrial(Boolean(data.isTrial));
+        setReachedBehaviorTest(Boolean(data.behaviorTest));
         if (typeof data.allowanceLimit === "number") {
           setAllowanceLimit(data.allowanceLimit);
         }
@@ -193,9 +197,10 @@ export function CreateFlow({
   }
 
   function handleContinueFromPreview() {
-    // Returning members with valid access skip the paywall; Checkout still
-    // revalidates by submitted phone on the server.
-    if (skipPaywall) {
+    // Behavior-test mode skips the Stripe paywall entirely (no card). Returning
+    // members with valid access also skip it; Checkout still revalidates by
+    // submitted phone on the server.
+    if (behaviorTest || skipPaywall) {
       void submit();
       return;
     }
@@ -205,7 +210,17 @@ export function CreateFlow({
   if (view === "allowance-reached") {
     return (
       <section className="rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)]">
-        {reachedIsTrial ? (
+        {reachedBehaviorTest ? (
+          <>
+            <h1 className="text-2xl text-navy">
+              You&apos;ve already created your behavior-test plan
+            </h1>
+            <p className="mt-3 text-navy">
+              Behavior-test mode allows one card-free plan per phone number. Use
+              a different phone number to create another test plan.
+            </p>
+          </>
+        ) : reachedIsTrial ? (
           <>
             <h1 className="text-2xl text-navy">
               You&apos;ve used your free trial plan
@@ -241,6 +256,13 @@ export function CreateFlow({
 
   return (
     <section>
+      {behaviorTest ? (
+        <p className="mb-6 rounded-md border border-orange bg-cream px-4 py-3 text-sm text-navy">
+          <strong>Behavior-test mode.</strong> No card required — you can create
+          one plan and continue straight to sharing it.
+        </p>
+      ) : null}
+
       {canceled ? (
         <p className="mb-6 rounded-md border border-border-strong bg-cream px-4 py-3 text-sm text-navy">
           Checkout was canceled. Your plan is still here — continue when

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui";
 import { MoreDetails } from "@/components/MoreDetails";
 import { rewardConfig } from "@/config/reward";
+import { isBehaviorTestMode } from "@/lib/behavior-test";
 
 const howItWorksSteps = [
   {
@@ -35,6 +36,7 @@ const membershipBenefits = [
 ];
 
 export default function LandingPage() {
+  const behaviorTest = isBehaviorTestMode();
   return (
     <>
       <SiteHeader showNav />
@@ -60,7 +62,7 @@ export default function LandingPage() {
                     href="/create"
                     className={`${primaryButton} w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-auto sm:min-w-[10.5rem]`}
                   >
-                    Start free trial
+                    {behaviorTest ? "Make your first plan" : "Start free trial"}
                   </Link>
                   <Link
                     href="/returning-member"
@@ -70,8 +72,9 @@ export default function LandingPage() {
                   </Link>
                 </div>
                 <p className="mt-3 text-sm text-muted">
-                  First plan free for 14 days · then $10/month · 3 plans per
-                  month · friends join free
+                  {behaviorTest
+                    ? "One test plan. Free. No card required."
+                    : "First plan free for 14 days · then $10/month · 3 plans per month · friends join free"}
                 </p>
               </div>
             </div>
@@ -112,9 +115,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <MoreDetails />
+        <MoreDetails behaviorTest={behaviorTest} />
 
-        {/* Membership */}
+        {/* Membership — subscription pricing card. Hidden in behavior-test mode. */}
+        {behaviorTest ? null : (
         <section className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
           <div className="mx-auto max-w-xl rounded-lg border border-border bg-surface p-7 shadow-[var(--shadow-card)] sm:p-9">
             <h2 className="text-2xl text-navy sm:text-3xl">
@@ -153,8 +157,10 @@ export default function LandingPage() {
             </p>
           </div>
         </section>
+        )}
 
-        {/* Why the membership */}
+        {/* Why the membership — explains the $10 subscription. Hidden in behavior-test mode. */}
+        {behaviorTest ? null : (
         <section id="why-10" className="scroll-mt-24 border-y border-border bg-surface">
           <div className="mx-auto w-full max-w-3xl px-5 py-14 sm:px-8">
             <h2 className="text-2xl text-navy sm:text-3xl">So why $10?</h2>
@@ -169,6 +175,7 @@ export default function LandingPage() {
             </p>
           </div>
         </section>
+        )}
 
         {/* Differentiation */}
         <section className="mx-auto w-full max-w-3xl px-5 py-14 sm:px-8">

@@ -7,6 +7,7 @@ import { friendShareMessage } from "@/lib/messages";
 import { canShowCheckoutSuccess } from "@/lib/membership-identity";
 import { getInitiatorShareStatus } from "@/lib/invite-ui";
 import { formatTimeWindowShort } from "@/lib/time-windows";
+import { isBehaviorTestMode } from "@/lib/behavior-test";
 
 export default async function SuccessPage({
   searchParams,
@@ -24,6 +25,7 @@ export default async function SuccessPage({
     canShowCheckoutSuccess({
       runStatus: run.status,
       memberStatus: member?.subscription_status,
+      behaviorTest: run.is_behavior_test === true || isBehaviorTestMode(),
     });
 
   // Absolute URL only for the copy/share field. In-app Links stay relative

@@ -20,6 +20,7 @@ function member(partial: Partial<MemberRow> & Pick<MemberRow, "id" | "subscripti
     cancellation_requested_at: null,
     access_ends_at: null,
     member_access_token: "token",
+    is_behavior_test: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...partial,
@@ -141,5 +142,23 @@ describe("email + success eligibility", () => {
         memberStatus: "trialing",
       }),
     ).toBe(true);
+  });
+
+  it("behavior-test runs reach success without active/trialing membership", () => {
+    expect(
+      canShowCheckoutSuccess({
+        runStatus: "ready",
+        memberStatus: "inactive",
+        behaviorTest: true,
+      }),
+    ).toBe(true);
+    // But an awaiting_payment run is still rejected even in behavior-test mode.
+    expect(
+      canShowCheckoutSuccess({
+        runStatus: "awaiting_payment",
+        memberStatus: "inactive",
+        behaviorTest: true,
+      }),
+    ).toBe(false);
   });
 });

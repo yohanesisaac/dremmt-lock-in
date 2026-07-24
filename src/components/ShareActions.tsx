@@ -27,7 +27,7 @@ export function ShareActions({
 
   async function handleShare() {
     try {
-      await navigator.share({ title: "Dremmt run", text: message, url });
+      await navigator.share({ title: "You're invited on Dremmt", text: message, url });
     } catch {
       /* user dismissed the share sheet — nothing to do */
     }
